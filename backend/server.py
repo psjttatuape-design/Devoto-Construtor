@@ -361,7 +361,7 @@ async def download_template(current_user: dict = Depends(get_current_user)):
     
     wb = openpyxl.Workbook()
     ws = wb.active
-    ws.title = "Dizimistas"
+    ws.title = "Devotos"
     
     # Header style
     header_font = Font(bold=True, color="FFFFFF")
@@ -395,13 +395,13 @@ async def download_template(current_user: dict = Depends(get_current_user)):
     return StreamingResponse(
         output,
         media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-        headers={"Content-Disposition": "attachment; filename=template_dizimistas.xlsx"}
+        headers={"Content-Disposition": "attachment; filename=template_devotos.xlsx"}
     )
 
 @api_router.post("/dizimistas/import/excel")
 async def import_dizimistas_excel(file: UploadFile = File(...), current_user: dict = Depends(get_current_user)):
     if not check_permission(current_user, "dizimistas", "edit"):
-        raise HTTPException(status_code=403, detail="Sem permissão para importar dizimistas")
+        raise HTTPException(status_code=403, detail="Sem permissão para importar devotos")
     
     if not file.filename.endswith(('.xlsx', '.xls')):
         raise HTTPException(status_code=400, detail="Arquivo deve ser Excel (.xlsx ou .xls)")
@@ -559,7 +559,7 @@ async def export_dizimistas_excel(
     
     wb = openpyxl.Workbook()
     ws = wb.active
-    ws.title = "Lista de Dizimistas"
+    ws.title = "Lista de Devotos"
     
     # Header style
     header_font = Font(bold=True, color="FFFFFF")
@@ -628,7 +628,7 @@ async def export_dizimistas_excel(
     wb.save(output)
     output.seek(0)
     
-    filename = "lista_dizimistas"
+    filename = "lista_devotos"
     if status and status != "todos":
         filename += f"_{status}"
     if nota and nota != "todos":
@@ -653,7 +653,7 @@ async def list_dizimistas(
     current_user: dict = Depends(get_current_user)
 ):
     if not check_permission(current_user, "dizimistas", "view"):
-        raise HTTPException(status_code=403, detail="Sem permissão para visualizar dizimistas")
+        raise HTTPException(status_code=403, detail="Sem permissão para visualizar devotos")
     
     query = {}
     if nota and nota != "todos":
@@ -691,7 +691,7 @@ async def list_dizimistas(
 @api_router.post("/dizimistas")
 async def create_dizimista(data: DizimistaCreate, current_user: dict = Depends(get_current_user)):
     if not check_permission(current_user, "dizimistas", "edit"):
-        raise HTTPException(status_code=403, detail="Sem permissão para criar dizimistas")
+        raise HTTPException(status_code=403, detail="Sem permissão para criar devotos")
     
     # Verificar se já existe dizimista com o mesmo nome (case insensitive)
     existing = await db.dizimistas.find_one(
@@ -699,7 +699,7 @@ async def create_dizimista(data: DizimistaCreate, current_user: dict = Depends(g
         {"_id": 0}
     )
     if existing:
-        raise HTTPException(status_code=400, detail=f"Já existe um dizimista com o nome '{data.nome}'")
+        raise HTTPException(status_code=400, detail=f"Já existe um devoto com o nome '{data.nome}'")
     
     dizimista = DizimistaBase(**data.model_dump()).model_dump()
     await db.dizimistas.insert_one(dizimista)
@@ -709,7 +709,7 @@ async def create_dizimista(data: DizimistaCreate, current_user: dict = Depends(g
 @api_router.put("/dizimistas/{dizimista_id}")
 async def update_dizimista(dizimista_id: str, data: DizimistaUpdate, current_user: dict = Depends(get_current_user)):
     if not check_permission(current_user, "dizimistas", "edit"):
-        raise HTTPException(status_code=403, detail="Sem permissão para editar dizimistas")
+        raise HTTPException(status_code=403, detail="Sem permissão para editar devotos")
     
     update_data = {k: v for k, v in data.model_dump().items() if v is not None}
     if not update_data:
@@ -717,7 +717,7 @@ async def update_dizimista(dizimista_id: str, data: DizimistaUpdate, current_use
     
     result = await db.dizimistas.update_one({"id": dizimista_id}, {"$set": update_data})
     if result.modified_count == 0:
-        raise HTTPException(status_code=404, detail="Dizimista não encontrado")
+        raise HTTPException(status_code=404, detail="Devoto não encontrado")
     
     dizimista = await db.dizimistas.find_one({"id": dizimista_id}, {"_id": 0})
     return dizimista
@@ -725,12 +725,12 @@ async def update_dizimista(dizimista_id: str, data: DizimistaUpdate, current_use
 @api_router.delete("/dizimistas/{dizimista_id}")
 async def delete_dizimista(dizimista_id: str, current_user: dict = Depends(get_current_user)):
     if not check_permission(current_user, "dizimistas", "edit"):
-        raise HTTPException(status_code=403, detail="Sem permissão para excluir dizimistas")
+        raise HTTPException(status_code=403, detail="Sem permissão para excluir devotos")
     
     result = await db.dizimistas.delete_one({"id": dizimista_id})
     if result.deleted_count == 0:
-        raise HTTPException(status_code=404, detail="Dizimista não encontrado")
-    return {"message": "Dizimista excluído com sucesso"}
+        raise HTTPException(status_code=404, detail="Devoto não encontrado")
+    return {"message": "Devoto excluído com sucesso"}
 
 # Contribuicoes Routes
 @api_router.get("/contribuicoes")
@@ -775,7 +775,7 @@ async def create_contribuicao(data: ContribuicaoCreate, current_user: dict = Dep
     # Get dizimista name
     dizimista = await db.dizimistas.find_one({"id": data.dizimista_id}, {"_id": 0})
     if not dizimista:
-        raise HTTPException(status_code=404, detail="Dizimista não encontrado")
+        raise HTTPException(status_code=404, detail="Devoto não encontrado")
     
     contribuicao_data = data.model_dump()
     contribuicao_data["dizimista_nome"] = dizimista.get("nome", "")
@@ -868,7 +868,7 @@ async def trigger_status_update(current_user: dict = Depends(get_current_user)):
         raise HTTPException(status_code=403, detail="Apenas administradores podem atualizar status")
     
     await update_all_dizimistas_status()
-    return {"message": "Status dos dizimistas atualizado com sucesso"}
+    return {"message": "Status dos devotos atualizado com sucesso"}
 
 # Relatorios Routes
 @api_router.get("/relatorios/resumo")

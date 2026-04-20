@@ -227,7 +227,7 @@ const Sidebar = ({ isOpen, onClose }) => {
 
   const navItems = [
     { path: "/", icon: Home, label: "Painel Geral", show: hasPermission("dashboard", "view") || user?.role === "admin" },
-    { path: "/dizimistas", icon: Users, label: "Dizimistas", show: hasPermission("dizimistas", "view") },
+    { path: "/dizimistas", icon: Users, label: "Devotos", show: hasPermission("dizimistas", "view") },
     { path: "/contribuicoes", icon: DollarSign, label: "Contribuições", show: hasPermission("contribuicoes", "view") },
     { path: "/relatorios", icon: FileText, label: "Relatórios", show: hasPermission("relatorios", "view") },
     { path: "/configuracoes", icon: Settings, label: "Configurações", show: user?.role === "admin" },
@@ -420,7 +420,7 @@ const Dashboard = () => {
             <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
               <Card className="animate-fade-in" data-testid="card-total">
                 <CardHeader className="flex flex-row items-center justify-between pb-2">
-                  <CardTitle className="text-sm font-medium text-muted-foreground">Total Dizimistas</CardTitle>
+                  <CardTitle className="text-sm font-medium text-muted-foreground">Total Devotos</CardTitle>
                   <Users className="w-4 h-4 text-muted-foreground" />
                 </CardHeader>
                 <CardContent>
@@ -494,7 +494,7 @@ const Dashboard = () => {
                   <div>
                     <CardTitle className="flex items-center gap-2">
                       <BarChart3 className="w-5 h-5" />
-                      Filtros de Dizimistas
+                      Filtros de Devotos
                     </CardTitle>
                     <CardDescription>Filtre por nota, status ou mês de contribuição</CardDescription>
                   </div>
@@ -549,7 +549,7 @@ const Dashboard = () => {
                 <div className="mt-6 bg-muted/50 rounded-lg p-4">
                   <div className="flex items-center justify-between">
                     <div>
-                      <p className="text-sm text-muted-foreground">Dizimistas encontrados</p>
+                      <p className="text-sm text-muted-foreground">Devotos encontrados</p>
                       <p className="text-3xl font-bold">{loading ? "-" : contributionCount}</p>
                     </div>
                     {temFiltrosAtivos && (
@@ -635,7 +635,7 @@ const DizimistasPage = () => {
       const response = await axios.get(url);
       setDizimistas(response.data);
     } catch (error) {
-      toast.error("Erro ao buscar dizimistas");
+      toast.error("Erro ao buscar devotos");
     } finally {
       setLoading(false);
     }
@@ -646,10 +646,10 @@ const DizimistasPage = () => {
     try {
       if (editingDizimista) {
         await axios.put(`${API}/dizimistas/${editingDizimista.id}`, formData);
-        toast.success("Dizimista atualizado!");
+        toast.success("Devoto atualizado!");
       } else {
         await axios.post(`${API}/dizimistas`, formData);
-        toast.success("Dizimista cadastrado!");
+        toast.success("Devoto cadastrado!");
       }
       setDialogOpen(false);
       setEditingDizimista(null);
@@ -692,7 +692,7 @@ const DizimistasPage = () => {
     if (!editingDizimista) return;
     try {
       await axios.delete(`${API}/dizimistas/${editingDizimista.id}`);
-      toast.success("Dizimista excluído!");
+      toast.success("Devoto excluído!");
       setDialogOpen(false);
       setEditingDizimista(null);
       fetchDizimistas();
@@ -704,7 +704,7 @@ const DizimistasPage = () => {
   const handleDelete = async (id) => {
     try {
       await axios.delete(`${API}/dizimistas/${id}`);
-      toast.success("Dizimista excluído!");
+      toast.success("Devoto excluído!");
       fetchDizimistas();
     } catch (error) {
       toast.error("Erro ao excluir");
@@ -717,7 +717,7 @@ const DizimistasPage = () => {
       const url = window.URL.createObjectURL(new Blob([response.data]));
       const link = document.createElement('a');
       link.href = url;
-      link.setAttribute('download', 'template_dizimistas.xlsx');
+      link.setAttribute('download', 'template_devotos.xlsx');
       document.body.appendChild(link);
       link.click();
       link.remove();
@@ -765,7 +765,7 @@ const DizimistasPage = () => {
       const blobUrl = window.URL.createObjectURL(new Blob([response.data]));
       const link = document.createElement('a');
       link.href = blobUrl;
-      link.setAttribute('download', 'lista_dizimistas.xlsx');
+      link.setAttribute('download', 'lista_devotos.xlsx');
       document.body.appendChild(link);
       link.click();
       link.remove();
@@ -791,8 +791,8 @@ const DizimistasPage = () => {
       <div className="space-y-6">
         <div className="flex items-center justify-between flex-wrap gap-4">
           <div>
-            <h1 className="text-3xl font-bold tracking-tight">Dizimistas</h1>
-            <p className="text-muted-foreground">Gerenciar membros dizimistas</p>
+            <h1 className="text-3xl font-bold tracking-tight">Devotos</h1>
+            <p className="text-muted-foreground">Gerenciar membros devotos</p>
           </div>
           <div className="flex items-center gap-2 flex-wrap">
             {/* Import/Export Dropdown */}
@@ -829,13 +829,13 @@ const DizimistasPage = () => {
                 <DialogTrigger asChild>
                   <Button className="bg-secondary text-secondary-foreground hover:bg-secondary/90" data-testid="btn-novo-dizimista">
                     <Plus className="w-4 h-4 mr-2" />
-                    Novo Dizimista
+                    Novo Devoto
                   </Button>
                 </DialogTrigger>
                 <DialogContent className="max-w-2xl">
                   <DialogHeader>
-                    <DialogTitle>{editingDizimista ? "Editar Dizimista" : "Novo Dizimista"}</DialogTitle>
-                    <DialogDescription>Preencha os dados do dizimista</DialogDescription>
+                    <DialogTitle>{editingDizimista ? "Editar Devoto" : "Novo Devoto"}</DialogTitle>
+                    <DialogDescription>Preencha os dados do devoto</DialogDescription>
                   </DialogHeader>
                   <form onSubmit={handleSubmit} className="space-y-4">
                     <div className="space-y-2">
@@ -1075,7 +1075,7 @@ const DizimistasPage = () => {
             </Button>
           )}
           <div className="ml-auto text-sm text-muted-foreground font-medium">
-            {dizimistas.length} dizimista(s) encontrado(s)
+            {dizimistas.length} devoto(s) encontrado(s)
           </div>
         </div>
 
@@ -1083,8 +1083,8 @@ const DizimistasPage = () => {
         <Dialog open={importDialogOpen} onOpenChange={setImportDialogOpen}>
           <DialogContent>
             <DialogHeader>
-              <DialogTitle>Importar Dizimistas</DialogTitle>
-              <DialogDescription>Selecione um arquivo Excel (.xlsx) com os dados dos dizimistas</DialogDescription>
+              <DialogTitle>Importar Devotos</DialogTitle>
+              <DialogDescription>Selecione um arquivo Excel (.xlsx) com os dados dos devotos</DialogDescription>
             </DialogHeader>
             <div className="space-y-4">
               <div className="border-2 border-dashed rounded-lg p-6 text-center">
@@ -1113,7 +1113,7 @@ const DizimistasPage = () => {
         <Dialog open={exportDialogOpen} onOpenChange={setExportDialogOpen}>
           <DialogContent>
             <DialogHeader>
-              <DialogTitle>Exportar Lista de Dizimistas</DialogTitle>
+              <DialogTitle>Exportar Lista de Devotos</DialogTitle>
               <DialogDescription>A exportação usará os mesmos filtros aplicados na listagem atual</DialogDescription>
             </DialogHeader>
             <div className="space-y-4">
@@ -1128,7 +1128,7 @@ const DizimistasPage = () => {
                 </ul>
               </div>
               <p className="text-sm text-muted-foreground">
-                Total de {dizimistas.length} dizimista(s) será(ão) exportado(s).
+                Total de {dizimistas.length} devoto(s) será(ão) exportado(s).
               </p>
             </div>
             <DialogFooter>
@@ -1168,7 +1168,7 @@ const DizimistasPage = () => {
                 ) : dizimistas.length === 0 ? (
                   <TableRow>
                     <TableCell colSpan={canEdit ? 9 : 8} className="text-center py-8 text-muted-foreground">
-                      Nenhum dizimista cadastrado
+                      Nenhum devoto cadastrado
                     </TableCell>
                   </TableRow>
                 ) : (
@@ -1361,7 +1361,7 @@ const ContribuicoesPage = () => {
     
     // Validação
     if (!formData.dizimista_id) {
-      toast.error("Selecione um dizimista");
+      toast.error("Selecione um devoto");
       return;
     }
     if (!formData.valor || parseFloat(formData.valor) <= 0) {
@@ -1480,7 +1480,7 @@ const ContribuicoesPage = () => {
         <div className="flex justify-between items-start mb-6">
           <div>
             <h1 className="text-3xl font-bold tracking-tight">Contribuições</h1>
-            <p className="text-muted-foreground">Gerenciar contribuições dos dizimistas</p>
+            <p className="text-muted-foreground">Gerenciar contribuições dos devotos</p>
           </div>
           <div className="flex gap-2">
             {isAdmin && (
@@ -1525,10 +1525,10 @@ const ContribuicoesPage = () => {
                   </DialogHeader>
                   <form onSubmit={handleSubmit} className="space-y-4">
                     <div className="space-y-2">
-                      <Label htmlFor="dizimista_id">Dizimista *</Label>
+                      <Label htmlFor="dizimista_id">Devoto *</Label>
                       <div className="relative">
                         <Input
-                          placeholder="Digite para buscar dizimista..."
+                          placeholder="Digite para buscar devoto..."
                           value={editingContribuicao ? selectedDizimistaName : dizimistaSearch || selectedDizimistaName}
                           onChange={(e) => {
                             setDizimistaSearch(e.target.value);
@@ -1560,7 +1560,7 @@ const ContribuicoesPage = () => {
                         )}
                         {dizimistaDropdownOpen && !editingContribuicao && dizimistaSearch && filteredDizimistas.length === 0 && (
                           <div className="absolute z-50 w-full mt-1 bg-background border rounded-md shadow-lg p-3 text-muted-foreground">
-                            Nenhum dizimista encontrado
+                            Nenhum devoto encontrado
                           </div>
                         )}
                       </div>
@@ -1654,7 +1654,7 @@ const ContribuicoesPage = () => {
           </Card>
           <Card>
             <CardHeader className="pb-2">
-              <CardTitle className="text-sm font-medium text-muted-foreground">Dizimistas Cadastrados</CardTitle>
+              <CardTitle className="text-sm font-medium text-muted-foreground">Devotos Cadastrados</CardTitle>
             </CardHeader>
             <CardContent>
               <div className="text-2xl font-bold">{dizimistas.length}</div>
@@ -1794,10 +1794,10 @@ const ContribuicoesPage = () => {
                   onValueChange={(v) => setFiltros({...filtros, dizimista_id: v === "todos" ? "" : v})}
                 >
                   <SelectTrigger className="w-[200px]">
-                    <SelectValue placeholder="Dizimista" />
+                    <SelectValue placeholder="Devoto" />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="todos">Todos os Dizimistas</SelectItem>
+                    <SelectItem value="todos">Todos os Devotos</SelectItem>
                     {dizimistas.map(d => (
                       <SelectItem key={d.id} value={d.id}>{d.nome}</SelectItem>
                     ))}
@@ -1813,7 +1813,7 @@ const ContribuicoesPage = () => {
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead>Dizimista</TableHead>
+                  <TableHead>Devoto</TableHead>
                   <TableHead>Data</TableHead>
                   <TableHead>Mês Ref.</TableHead>
                   <TableHead>Valor</TableHead>
@@ -1868,7 +1868,7 @@ const ContribuicoesPage = () => {
                 Tem certeza que deseja excluir esta contribuição?
                 {contribuicaoToDelete && (
                   <div className="mt-3 p-3 bg-muted rounded-lg">
-                    <p><strong>Dizimista:</strong> {contribuicaoToDelete.dizimista_nome}</p>
+                    <p><strong>Devoto:</strong> {contribuicaoToDelete.dizimista_nome}</p>
                     <p><strong>Valor:</strong> {formatCurrency(contribuicaoToDelete.valor)}</p>
                     <p><strong>Data:</strong> {formatDate(contribuicaoToDelete.data)}</p>
                   </div>
@@ -2097,7 +2097,7 @@ const RelatoriosPage = () => {
         <div className="bento-grid">
           <Card data-testid="card-total-dizimistas">
             <CardHeader className="pb-2">
-              <CardTitle className="text-sm font-medium text-muted-foreground">Total Dizimistas</CardTitle>
+              <CardTitle className="text-sm font-medium text-muted-foreground">Total Devotos</CardTitle>
             </CardHeader>
             <CardContent>
               <div className="text-3xl font-bold">{loading ? "-" : resumo?.total_dizimistas || 0}</div>
@@ -2196,7 +2196,7 @@ const RelatoriosPage = () => {
               <div className="flex items-center justify-between">
                 <div>
                   <CardTitle>Histórico de Contribuições</CardTitle>
-                  <CardDescription>Filtre por período, status ou nota dos dizimistas</CardDescription>
+                  <CardDescription>Filtre por período, status ou nota dos devotos</CardDescription>
                 </div>
                 {temFiltrosAtivos && (
                   <Button variant="ghost" size="sm" onClick={limparFiltros}>
@@ -2296,7 +2296,7 @@ const RelatoriosPage = () => {
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead>Dizimista</TableHead>
+                  <TableHead>Devoto</TableHead>
                   <TableHead>Status</TableHead>
                   <TableHead>Nota</TableHead>
                   <TableHead>Valor</TableHead>
@@ -2633,7 +2633,7 @@ const ConfiguracoesPage = () => {
                     <TableRow>
                       <TableHead>Usuário</TableHead>
                       <TableHead>Tipo</TableHead>
-                      <TableHead>Dizimistas</TableHead>
+                      <TableHead>Devotos</TableHead>
                       <TableHead>Relatórios</TableHead>
                       <TableHead className="text-right">Ações</TableHead>
                     </TableRow>
@@ -2742,7 +2742,7 @@ const ConfiguracoesPage = () => {
                   <div className="space-y-4">
                     <h4 className="font-medium flex items-center gap-2">
                       <Users className="w-4 h-4" />
-                      Dizimistas
+                      Devotos
                     </h4>
                     <div className="ml-6 space-y-3">
                       <div className="flex items-center justify-between">
