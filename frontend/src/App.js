@@ -147,8 +147,8 @@ const LoginPage = () => {
           <div className="text-center">
             <div className="flex justify-center mb-4">
               <img 
-                src="https://customer-assets.emergentagent.com/job_permission-manager-8/artifacts/hr97hygf_Logo%20PSJT.jpg" 
-                alt="Paróquia São Judas Tadeu" 
+                src="https://customer-assets.emergentagent.com/job_retake-flow/artifacts/memtsdyr_Altar.jpeg" 
+                alt="Altar - Paróquia São Judas Tadeu" 
                 className="w-32 h-32 rounded-full object-cover shadow-lg border-4 border-red-600"
               />
             </div>
