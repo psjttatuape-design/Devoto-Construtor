@@ -598,11 +598,10 @@ const DizimistasPage = () => {
   const [exportDialogOpen, setExportDialogOpen] = useState(false);
   const [editingDizimista, setEditingDizimista] = useState(null);
   const [formData, setFormData] = useState({ 
-    nome: "", telefone: "", telefone_residencial: "", email: "", 
+    nome: "", telefone: "", email: "", 
     logradouro: "", numero: "", complemento: "", cep: "",
-    data_nascimento: "", estado_civil: "", nome_conjuge: "",
-    nota: "Novo", status: "Ativo", 
-    comunicacao: "", valor_dizimo: 0 
+    carne_numero: "", valor_dizimo: 0,
+    nota: "Novo", status: "Ativo"
   });
   const [filtros, setFiltros] = useState({ nota: "", status: "", mes_aniversario: "", nome: "" });
   const [importing, setImporting] = useState(false);
@@ -658,11 +657,10 @@ const DizimistasPage = () => {
       setDialogOpen(false);
       setEditingDizimista(null);
       setFormData({ 
-        nome: "", telefone: "", telefone_residencial: "", email: "", 
+        nome: "", telefone: "", email: "", 
         logradouro: "", numero: "", complemento: "", cep: "",
-        data_nascimento: "", estado_civil: "", nome_conjuge: "",
-        nota: "Novo", status: "Ativo", 
-        comunicacao: "", valor_dizimo: 0 
+        carne_numero: "", valor_dizimo: 0,
+        nota: "Novo", status: "Ativo"
       });
       fetchDizimistas();
     } catch (error) {
@@ -675,19 +673,15 @@ const DizimistasPage = () => {
     setFormData({
       nome: dizimista.nome,
       telefone: dizimista.telefone || "",
-      telefone_residencial: dizimista.telefone_residencial || "",
       email: dizimista.email || "",
       logradouro: dizimista.logradouro || dizimista.endereco || "",
       numero: dizimista.numero || "",
       complemento: dizimista.complemento || "",
       cep: dizimista.cep || "",
-      data_nascimento: dizimista.data_nascimento || "",
-      estado_civil: dizimista.estado_civil || "",
-      nome_conjuge: dizimista.nome_conjuge || "",
+      carne_numero: dizimista.carne_numero || "",
+      valor_dizimo: dizimista.valor_dizimo || 0,
       nota: dizimista.nota || "Novo",
-      status: dizimista.status || "Ativo",
-      comunicacao: dizimista.comunicacao || "",
-      valor_dizimo: dizimista.valor_dizimo
+      status: dizimista.status || "Ativo"
     });
     setDialogOpen(true);
   };
@@ -829,7 +823,7 @@ const DizimistasPage = () => {
             </DropdownMenu>
 
             {canEdit && (
-              <Dialog open={dialogOpen} onOpenChange={(open) => { setDialogOpen(open); if (!open) { setEditingDizimista(null); setFormData({ nome: "", telefone: "", telefone_residencial: "", email: "", logradouro: "", numero: "", complemento: "", cep: "", data_nascimento: "", estado_civil: "", nome_conjuge: "", nota: "Novo", status: "Ativo", comunicacao: "", valor_dizimo: 0 }); } }}>
+              <Dialog open={dialogOpen} onOpenChange={(open) => { setDialogOpen(open); if (!open) { setEditingDizimista(null); setFormData({ nome: "", telefone: "", email: "", logradouro: "", numero: "", complemento: "", cep: "", carne_numero: "", valor_dizimo: 0, nota: "Novo", status: "Ativo" }); } }}>
                 <DialogTrigger asChild>
                   <Button className="bg-secondary text-secondary-foreground hover:bg-secondary/90" data-testid="btn-novo-dizimista">
                     <Plus className="w-4 h-4 mr-2" />
@@ -852,7 +846,7 @@ const DizimistasPage = () => {
                         required
                       />
                     </div>
-                    <div className="grid grid-cols-3 gap-4">
+                    <div className="grid grid-cols-2 gap-4">
                       <div className="space-y-2">
                         <Label htmlFor="telefone">Celular</Label>
                         <Input
@@ -864,23 +858,13 @@ const DizimistasPage = () => {
                         />
                       </div>
                       <div className="space-y-2">
-                        <Label htmlFor="telefone_residencial">Tel. Residencial</Label>
+                        <Label htmlFor="email">E-mail</Label>
                         <Input
-                          id="telefone_residencial"
-                          data-testid="input-telefone-res"
-                          value={formData.telefone_residencial}
-                          onChange={(e) => setFormData({ ...formData, telefone_residencial: e.target.value })}
-                          placeholder="(11) 2222-3333"
-                        />
-                      </div>
-                      <div className="space-y-2">
-                        <Label htmlFor="data_nascimento">Data Nascimento</Label>
-                        <Input
-                          id="data_nascimento"
-                          data-testid="input-nascimento"
-                          type="date"
-                          value={formData.data_nascimento}
-                          onChange={(e) => setFormData({ ...formData, data_nascimento: e.target.value })}
+                          id="email"
+                          data-testid="input-email"
+                          type="email"
+                          value={formData.email}
+                          onChange={(e) => setFormData({ ...formData, email: e.target.value })}
                         />
                       </div>
                     </div>
@@ -915,7 +899,7 @@ const DizimistasPage = () => {
                         />
                       </div>
                     </div>
-                    <div className="grid grid-cols-2 gap-4">
+                    <div className="grid grid-cols-3 gap-4">
                       <div className="space-y-2">
                         <Label htmlFor="cep">CEP</Label>
                         <Input
@@ -927,86 +911,27 @@ const DizimistasPage = () => {
                         />
                       </div>
                       <div className="space-y-2">
-                        <Label htmlFor="email">Email</Label>
+                        <Label htmlFor="carne_numero">Nº Carnê</Label>
                         <Input
-                          id="email"
-                          data-testid="input-email"
-                          type="email"
-                          value={formData.email}
-                          onChange={(e) => setFormData({ ...formData, email: e.target.value })}
+                          id="carne_numero"
+                          data-testid="input-carne"
+                          value={formData.carne_numero}
+                          onChange={(e) => setFormData({ ...formData, carne_numero: e.target.value })}
+                          placeholder="Ex: 0001"
                         />
                       </div>
-                    </div>
-                    <div className="grid grid-cols-2 gap-4">
                       <div className="space-y-2">
-                        <Label htmlFor="estado_civil">Estado Civil</Label>
-                        <Select value={formData.estado_civil || "nenhum"} onValueChange={(v) => setFormData({ ...formData, estado_civil: v === "nenhum" ? "" : v, nome_conjuge: v !== "Casado" ? "" : formData.nome_conjuge })}>
-                          <SelectTrigger data-testid="select-estado-civil">
-                            <SelectValue placeholder="Selecione" />
-                          </SelectTrigger>
-                          <SelectContent>
-                            <SelectItem value="nenhum">Selecione</SelectItem>
-                            <SelectItem value="Solteiro">Solteiro</SelectItem>
-                            <SelectItem value="Casado">Casado</SelectItem>
-                            <SelectItem value="Outros">Outros</SelectItem>
-                          </SelectContent>
-                        </Select>
-                      </div>
-                      {formData.estado_civil === "Casado" && (
-                        <div className="space-y-2">
-                          <Label htmlFor="nome_conjuge">Nome do Cônjuge</Label>
-                          <Input
-                            id="nome_conjuge"
-                            data-testid="input-conjuge"
-                            value={formData.nome_conjuge}
-                            onChange={(e) => setFormData({ ...formData, nome_conjuge: e.target.value })}
-                            placeholder="Nome do cônjuge"
-                          />
-                        </div>
-                      )}
-                    </div>
-                    <div className="grid grid-cols-3 gap-4">
-                      <div className="space-y-2">
-                        <Label htmlFor="comunicacao">Comunicação</Label>
-                        <Select value={formData.comunicacao || "nenhum"} onValueChange={(v) => setFormData({ ...formData, comunicacao: v === "nenhum" ? "" : v })}>
-                          <SelectTrigger data-testid="select-comunicacao">
-                            <SelectValue placeholder="Selecione" />
-                          </SelectTrigger>
-                          <SelectContent>
-                            <SelectItem value="nenhum">Selecione</SelectItem>
-                            <SelectItem value="WhatsApp">WhatsApp</SelectItem>
-                            <SelectItem value="Correio">Correio</SelectItem>
-                            <SelectItem value="E-mail">E-mail</SelectItem>
-                          </SelectContent>
-                        </Select>
-                      </div>
-                    </div>
-                    <div className="grid grid-cols-3 gap-4">
-                      <div className="space-y-2">
-                        <Label htmlFor="nota">Nota</Label>
-                        <Select value={formData.nota} onValueChange={(v) => setFormData({ ...formData, nota: v })}>
-                          <SelectTrigger data-testid="select-nota">
-                            <SelectValue />
-                          </SelectTrigger>
-                          <SelectContent>
-                            <SelectItem value="Novo">Novo</SelectItem>
-                            <SelectItem value="Atualizar">Atualizar</SelectItem>
-                            <SelectItem value="OK">OK</SelectItem>
-                          </SelectContent>
-                        </Select>
-                      </div>
-                      <div className="space-y-2">
-                        <Label htmlFor="status">Status</Label>
-                        <Select value={formData.status} onValueChange={(v) => setFormData({ ...formData, status: v })}>
-                          <SelectTrigger data-testid="select-status">
-                            <SelectValue />
-                          </SelectTrigger>
-                          <SelectContent>
-                            <SelectItem value="Ativo">Ativo</SelectItem>
-                            <SelectItem value="Pendente">Pendente</SelectItem>
-                            <SelectItem value="Inativo">Inativo</SelectItem>
-                          </SelectContent>
-                        </Select>
+                        <Label htmlFor="valor_dizimo">Valor R$</Label>
+                        <Input
+                          id="valor_dizimo"
+                          data-testid="input-valor"
+                          type="number"
+                          step="0.01"
+                          min="0"
+                          value={formData.valor_dizimo}
+                          onChange={(e) => setFormData({ ...formData, valor_dizimo: parseFloat(e.target.value) || 0 })}
+                          placeholder="0,00"
+                        />
                       </div>
                     </div>
                     <DialogFooter className="flex justify-between sm:justify-between">

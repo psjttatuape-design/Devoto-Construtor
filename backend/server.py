@@ -108,6 +108,7 @@ class DizimistaBase(BaseModel):
     mes_contribuicao: str = ""  # Mês preferencial de contribuição
     comunicacao: str = ""  # WhatsApp, Correio, E-mail
     valor_dizimo: float = 0.0
+    carne_numero: str = ""
     data_cadastro: str = Field(default_factory=lambda: datetime.now(timezone.utc).isoformat())
     ultima_contribuicao: str = ""
 
@@ -129,6 +130,7 @@ class DizimistaCreate(BaseModel):
     mes_contribuicao: str = ""
     comunicacao: str = ""
     valor_dizimo: float = 0.0
+    carne_numero: str = ""
 
 class DizimistaUpdate(BaseModel):
     nome: Optional[str] = None
@@ -148,6 +150,7 @@ class DizimistaUpdate(BaseModel):
     mes_contribuicao: Optional[str] = None
     comunicacao: Optional[str] = None
     valor_dizimo: Optional[float] = None
+    carne_numero: Optional[str] = None
 
 class ContribuicaoBase(BaseModel):
     model_config = ConfigDict(extra="ignore")
