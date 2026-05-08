@@ -148,7 +148,7 @@ const LoginPage = () => {
         </div>
       </div>
       
-      <div className="login-form-container">
+      <div className="login-form-container relative">
         <div className="w-full max-w-md space-y-8">
           <div className="text-center">
             <div className="flex justify-center mb-4">
@@ -209,6 +209,12 @@ const LoginPage = () => {
             </Button>
           </form>
         </div>
+        <span
+          data-testid="app-version"
+          className="absolute bottom-16 right-6 text-sm text-gray-500 font-semibold select-none z-10"
+        >
+          V1.1
+        </span>
       </div>
     </div>
   );
