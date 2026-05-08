@@ -137,15 +137,9 @@ const LoginPage = () => {
     <div className="login-container">
       <div 
         className="login-hero"
-        style={{ backgroundImage: `url(https://images.unsplash.com/photo-1741903736332-8f87836f88eb?q=85&w=1920&auto=format&fit=crop)` }}
+        style={{ backgroundImage: `url(https://customer-assets.emergentagent.com/job_retake-flow/artifacts/2j5zjbff_2-corintios-9-7.jpg)` }}
       >
         <div className="login-hero-overlay" />
-        <div className="login-hero-content">
-          <blockquote className="text-xl italic font-light mb-2">
-            "Cada um dê como dispôs em seu coração, sem pena nem constrangimento, pois Deus ama a quem dá com alegria."
-          </blockquote>
-          <p className="text-sm opacity-80">2 Coríntios 9,7</p>
-        </div>
       </div>
       
       <div className="login-form-container relative">
