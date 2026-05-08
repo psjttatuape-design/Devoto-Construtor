@@ -154,7 +154,11 @@ const LoginPage = () => {
             </div>
             <h1 className="text-3xl font-bold tracking-tight text-red-800">Paróquia São Judas Tadeu</h1>
             <p className="text-muted-foreground mt-1">Tatuapé - São Paulo</p>
-            <p className="text-2xl font-bold text-green-600 mt-4">Gestão Devoto Construtor</p>
+            <img
+              src="https://customer-assets.emergentagent.com/job_retake-flow/artifacts/d5pqjk8r_Captura%20de%20tela%202026-05-08%20170636.png"
+              alt="Sou Devoto Construtor"
+              className="w-full max-w-sm mx-auto mt-4 rounded-md shadow-sm"
+            />
           </div>
           
           <form onSubmit={handleSubmit} className="space-y-6">
