@@ -1173,17 +1173,17 @@ const ContribuicoesPage = () => {
   const [dizimistaSearch, setDizimistaSearch] = useState("");
   const [dizimistaDropdownOpen, setDizimistaDropdownOpen] = useState(false);
   
-  // Função para obter valores padrão (data e mês atual)
+  // Função para obter valores padrão (data atual)
   const getDefaultFormData = () => {
     const hoje = new Date();
     const dataAtual = hoje.toISOString().split('T')[0]; // formato YYYY-MM-DD
-    const mesAtual = String(hoje.getMonth() + 1); // getMonth() retorna 0-11
     return {
       dizimista_id: "", 
       valor: "", 
       data: dataAtual, 
-      mes_referencia: mesAtual, 
-      meio: ""
+      meio: "",
+      carne_numero: "",
+      parcela: ""
     };
   };
   
@@ -1301,7 +1301,8 @@ const ContribuicoesPage = () => {
     try {
       const payload = {
         ...formData,
-        valor: parseFloat(formData.valor) || 0
+        valor: parseFloat(formData.valor) || 0,
+        parcela: parseInt(formData.parcela) || 0
       };
 
       if (editingContribuicao) {
@@ -1327,8 +1328,9 @@ const ContribuicoesPage = () => {
       dizimista_id: contrib.dizimista_id,
       valor: contrib.valor.toString(),
       data: contrib.data?.split("T")[0] || "",
-      mes_referencia: contrib.mes_referencia || "",
-      meio: contrib.meio || ""
+      meio: contrib.meio || "",
+      carne_numero: contrib.carne_numero || "",
+      parcela: contrib.parcela ? String(contrib.parcela) : ""
     });
     setDialogOpen(true);
   };
@@ -1477,7 +1479,7 @@ const ContribuicoesPage = () => {
                                 key={d.id}
                                 className="px-3 py-2 cursor-pointer hover:bg-muted transition-colors"
                                 onClick={() => {
-                                  setFormData({ ...formData, dizimista_id: d.id });
+                                  setFormData({ ...formData, dizimista_id: d.id, carne_numero: d.carne_numero || formData.carne_numero });
                                   setDizimistaSearch(d.nome);
                                   setDizimistaDropdownOpen(false);
                                 }}
@@ -1518,23 +1520,6 @@ const ContribuicoesPage = () => {
                       </div>
                     </div>
                     <div className="space-y-2">
-                      <Label htmlFor="mes_referencia">Mês de Referência</Label>
-                      <Select 
-                        value={formData.mes_referencia || "nenhum"} 
-                        onValueChange={(v) => setFormData({ ...formData, mes_referencia: v === "nenhum" ? "" : v })}
-                      >
-                        <SelectTrigger>
-                          <SelectValue placeholder="Selecione" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="nenhum">Selecione</SelectItem>
-                          {meses.map(m => (
-                            <SelectItem key={m.value} value={m.value}>{m.label}</SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                    </div>
-                    <div className="space-y-2">
                       <Label htmlFor="meio">Meio</Label>
                       <Select 
                         value={formData.meio || "nenhum"} 
@@ -1550,6 +1535,35 @@ const ContribuicoesPage = () => {
                           <SelectItem value="Presencial">Presencial</SelectItem>
                         </SelectContent>
                       </Select>
+                    </div>
+                    <div className="grid grid-cols-2 gap-4">
+                      <div className="space-y-2">
+                        <Label htmlFor="carne_numero">Nº Carnê</Label>
+                        <Input
+                          id="carne_numero"
+                          data-testid="input-contrib-carne"
+                          value={formData.carne_numero}
+                          onChange={(e) => setFormData({ ...formData, carne_numero: e.target.value })}
+                          placeholder="Ex: 0001"
+                        />
+                      </div>
+                      <div className="space-y-2">
+                        <Label htmlFor="parcela">Nº Parcela</Label>
+                        <Select
+                          value={formData.parcela ? String(formData.parcela) : "nenhum"}
+                          onValueChange={(v) => setFormData({ ...formData, parcela: v === "nenhum" ? "" : v })}
+                        >
+                          <SelectTrigger data-testid="select-parcela">
+                            <SelectValue placeholder="Selecione" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="nenhum">Selecione</SelectItem>
+                            {[1,2,3,4,5,6,7,8,9,10].map(n => (
+                              <SelectItem key={n} value={String(n)}>{n}</SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </div>
                     </div>
                     <DialogFooter>
                       <Button type="submit">
