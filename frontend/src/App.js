@@ -211,7 +211,7 @@ const LoginPage = () => {
           data-testid="app-version"
           className="absolute bottom-16 right-6 text-sm text-gray-500 font-semibold select-none z-10"
         >
-          V1.1
+          V 1.0
         </span>
       </div>
     </div>
