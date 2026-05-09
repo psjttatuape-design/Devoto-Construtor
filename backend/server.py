@@ -55,6 +55,8 @@ class UserPermissions(BaseModel):
     contribuicoes_edit: bool = False
     relatorios_view: bool = False
     relatorios_edit: bool = False
+    fluxo_caixa_view: bool = False
+    fluxo_caixa_edit: bool = False
 
 class UserBase(BaseModel):
     model_config = ConfigDict(extra="ignore")
@@ -200,6 +202,57 @@ class ValorMensalUpdate(BaseModel):
     valor: Optional[float] = None
     observacao: Optional[str] = None
 
+# Fluxo de Caixa
+class FluxoCaixaBase(BaseModel):
+    model_config = ConfigDict(extra="ignore")
+    id: str = Field(default_factory=lambda: str(uuid.uuid4()))
+    tipo: str  # "caixa" | "previsao" | "pagamento"
+    descricao: str = ""
+    valor: float = 0.0
+    data: str = Field(default_factory=lambda: datetime.now(timezone.utc).strftime("%Y-%m-%d"))
+    # Caixa
+    movimento: str = ""  # "Entrada" | "Saída"
+    # Previsao
+    periodo: str = ""  # ex: "1ª Quinzena - Maio/2026"
+    quinzena: int = 0  # 1 ou 2
+    mes: int = 0
+    ano: int = 0
+    # Pagamento
+    categoria: str = ""  # Empreiteira, Arquitetas, Material Construção, Acabamentos, Marmoraria, Marceneiro, Som, Eletricista, Outros
+    fornecedor: str = ""
+    pago: bool = False
+    observacao: str = ""
+    created_at: str = Field(default_factory=lambda: datetime.now(timezone.utc).isoformat())
+
+class FluxoCaixaCreate(BaseModel):
+    tipo: str
+    descricao: str = ""
+    valor: float = 0.0
+    data: Optional[str] = None
+    movimento: str = ""
+    periodo: str = ""
+    quinzena: int = 0
+    mes: int = 0
+    ano: int = 0
+    categoria: str = ""
+    fornecedor: str = ""
+    pago: bool = False
+    observacao: str = ""
+
+class FluxoCaixaUpdate(BaseModel):
+    descricao: Optional[str] = None
+    valor: Optional[float] = None
+    data: Optional[str] = None
+    movimento: Optional[str] = None
+    periodo: Optional[str] = None
+    quinzena: Optional[int] = None
+    mes: Optional[int] = None
+    ano: Optional[int] = None
+    categoria: Optional[str] = None
+    fornecedor: Optional[str] = None
+    pago: Optional[bool] = None
+    observacao: Optional[str] = None
+
 # Helper functions
 def hash_password(password: str) -> str:
     return pwd_context.hash(password)
@@ -250,7 +303,9 @@ async def startup_db():
                 "dizimistas_view": True,
                 "dizimistas_edit": True,
                 "relatorios_view": True,
-                "relatorios_edit": True
+                "relatorios_edit": True,
+                "fluxo_caixa_view": True,
+                "fluxo_caixa_edit": True
             },
             "active": True,
             "created_at": datetime.now(timezone.utc).isoformat()
@@ -1148,6 +1203,76 @@ async def delete_valor_mensal(valor_id: str, current_user: dict = Depends(get_cu
 @api_router.get("/health")
 async def health_check():
     return {"status": "healthy"}
+# Fluxo de Caixa Routes
+@api_router.get("/fluxo-caixa")
+async def list_fluxo_caixa(
+    tipo: Optional[str] = None,
+    current_user: dict = Depends(get_current_user)
+):
+    if not check_permission(current_user, "fluxo_caixa", "view"):
+        raise HTTPException(status_code=403, detail="Sem permissão para visualizar fluxo de caixa")
+    query = {}
+    if tipo and tipo != "todos":
+        query["tipo"] = tipo
+    items = await db.fluxo_caixa.find(query, {"_id": 0}).sort("data", -1).to_list(10000)
+    return items
+
+@api_router.post("/fluxo-caixa")
+async def create_fluxo_caixa(data: FluxoCaixaCreate, current_user: dict = Depends(get_current_user)):
+    if not check_permission(current_user, "fluxo_caixa", "edit"):
+        raise HTTPException(status_code=403, detail="Sem permissão para registrar fluxo de caixa")
+    if data.tipo not in ("caixa", "previsao", "pagamento"):
+        raise HTTPException(status_code=400, detail="Tipo inválido")
+    payload = data.model_dump()
+    if not payload.get("data"):
+        payload["data"] = datetime.now(timezone.utc).strftime("%Y-%m-%d")
+    item = FluxoCaixaBase(**payload).model_dump()
+    await db.fluxo_caixa.insert_one(item)
+    item.pop("_id", None)
+    return item
+
+@api_router.put("/fluxo-caixa/{item_id}")
+async def update_fluxo_caixa(item_id: str, data: FluxoCaixaUpdate, current_user: dict = Depends(get_current_user)):
+    if not check_permission(current_user, "fluxo_caixa", "edit"):
+        raise HTTPException(status_code=403, detail="Sem permissão para editar fluxo de caixa")
+    update_data = {k: v for k, v in data.model_dump().items() if v is not None}
+    if not update_data:
+        raise HTTPException(status_code=400, detail="Nenhum dado para atualizar")
+    result = await db.fluxo_caixa.update_one({"id": item_id}, {"$set": update_data})
+    if result.matched_count == 0:
+        raise HTTPException(status_code=404, detail="Registro não encontrado")
+    item = await db.fluxo_caixa.find_one({"id": item_id}, {"_id": 0})
+    return item
+
+@api_router.delete("/fluxo-caixa/{item_id}")
+async def delete_fluxo_caixa(item_id: str, current_user: dict = Depends(get_current_user)):
+    if not check_permission(current_user, "fluxo_caixa", "edit"):
+        raise HTTPException(status_code=403, detail="Sem permissão para excluir fluxo de caixa")
+    result = await db.fluxo_caixa.delete_one({"id": item_id})
+    if result.deleted_count == 0:
+        raise HTTPException(status_code=404, detail="Registro não encontrado")
+    return {"message": "Registro excluído"}
+
+@api_router.get("/fluxo-caixa/resumo/saldo")
+async def resumo_saldo(current_user: dict = Depends(get_current_user)):
+    if not check_permission(current_user, "fluxo_caixa", "view"):
+        raise HTTPException(status_code=403, detail="Sem permissão")
+    items = await db.fluxo_caixa.find({"tipo": "caixa"}, {"_id": 0}).to_list(10000)
+    entradas = sum(i.get("valor", 0) for i in items if i.get("movimento") == "Entrada")
+    saidas = sum(i.get("valor", 0) for i in items if i.get("movimento") == "Saída")
+    pagamentos = await db.fluxo_caixa.find({"tipo": "pagamento", "pago": True}, {"_id": 0}).to_list(10000)
+    total_pago = sum(p.get("valor", 0) for p in pagamentos)
+    pagamentos_pendentes = await db.fluxo_caixa.find({"tipo": "pagamento", "pago": False}, {"_id": 0}).to_list(10000)
+    total_pendente = sum(p.get("valor", 0) for p in pagamentos_pendentes)
+    return {
+        "entradas": entradas,
+        "saidas": saidas,
+        "saldo": entradas - saidas,
+        "total_pago": total_pago,
+        "total_pendente": total_pendente,
+    }
+
+
 
 app.include_router(api_router)
 

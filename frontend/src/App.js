@@ -7,7 +7,7 @@ import {
   Users, Home, FileText, Settings, LogOut, Menu, X, 
   Plus, Edit, Trash2, Eye, EyeOff, Check, ChevronRight,
   DollarSign, TrendingUp, UserCheck, Church, Calendar, BarChart3,
-  Upload, Download, Printer, FileSpreadsheet
+  Upload, Download, Printer, FileSpreadsheet, Wallet
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -234,6 +234,7 @@ const Sidebar = ({ isOpen, onClose }) => {
     { path: "/dizimistas", icon: Users, label: "Devotos", show: hasPermission("dizimistas", "view") },
     { path: "/contribuicoes", icon: DollarSign, label: "Contribuições", show: hasPermission("contribuicoes", "view") },
     { path: "/relatorios", icon: FileText, label: "Relatórios", show: hasPermission("relatorios", "view") },
+    { path: "/fluxo-caixa", icon: Wallet, label: "Fluxo de Caixa", show: hasPermission("fluxo_caixa", "view") || user?.role === "admin" },
     { path: "/configuracoes", icon: Settings, label: "Configurações", show: user?.role === "admin" },
   ];
 
@@ -2653,6 +2654,475 @@ const ConfiguracoesPage = () => {
   );
 };
 
+// Fluxo de Caixa Page
+const FluxoCaixaPage = () => {
+  const { hasPermission } = useAuth();
+  const canEdit = hasPermission("fluxo_caixa", "edit");
+
+  const [items, setItems] = useState([]);
+  const [resumo, setResumo] = useState({ entradas: 0, saidas: 0, saldo: 0, total_pago: 0, total_pendente: 0 });
+  const [loading, setLoading] = useState(true);
+  const [activeTab, setActiveTab] = useState("caixa");
+  const [dialogOpen, setDialogOpen] = useState(false);
+  const [editing, setEditing] = useState(null);
+
+  const meses = [
+    { value: 1, label: "Janeiro" }, { value: 2, label: "Fevereiro" },
+    { value: 3, label: "Março" }, { value: 4, label: "Abril" },
+    { value: 5, label: "Maio" }, { value: 6, label: "Junho" },
+    { value: 7, label: "Julho" }, { value: 8, label: "Agosto" },
+    { value: 9, label: "Setembro" }, { value: 10, label: "Outubro" },
+    { value: 11, label: "Novembro" }, { value: 12, label: "Dezembro" }
+  ];
+
+  const categorias = [
+    "Empreiteira", "Arquitetas", "Material Construção", "Acabamentos",
+    "Marmoraria", "Marceneiro", "Som", "Eletricista", "Outros"
+  ];
+
+  const getEmptyForm = () => {
+    const hoje = new Date().toISOString().split('T')[0];
+    return {
+      tipo: activeTab === "caixa" ? "caixa" : activeTab === "previsao" ? "previsao" : "pagamento",
+      descricao: "",
+      valor: "",
+      data: hoje,
+      movimento: "Entrada",
+      quinzena: 1,
+      mes: new Date().getMonth() + 1,
+      ano: new Date().getFullYear(),
+      categoria: "Empreiteira",
+      fornecedor: "",
+      pago: false,
+      observacao: ""
+    };
+  };
+
+  const [formData, setFormData] = useState(getEmptyForm());
+
+  const fetchData = useCallback(async () => {
+    try {
+      setLoading(true);
+      const [itemsRes, resumoRes] = await Promise.all([
+        axios.get(`${API}/fluxo-caixa`),
+        axios.get(`${API}/fluxo-caixa/resumo/saldo`)
+      ]);
+      setItems(itemsRes.data);
+      setResumo(resumoRes.data);
+    } catch (error) {
+      toast.error("Erro ao carregar fluxo de caixa");
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => { fetchData(); }, [fetchData]);
+
+  const formatCurrency = (v) => new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(v || 0);
+  const formatDate = (d) => {
+    if (!d) return "-";
+    const parts = d.split("-");
+    return parts.length === 3 ? `${parts[2]}/${parts[1]}/${parts[0]}` : d;
+  };
+
+  const openNew = (tipo) => {
+    setEditing(null);
+    setActiveTab(tipo);
+    setFormData({ ...getEmptyForm(), tipo });
+    setDialogOpen(true);
+  };
+
+  const openEdit = (item) => {
+    setEditing(item);
+    setFormData({
+      tipo: item.tipo,
+      descricao: item.descricao || "",
+      valor: String(item.valor || ""),
+      data: item.data || "",
+      movimento: item.movimento || "Entrada",
+      quinzena: item.quinzena || 1,
+      mes: item.mes || (new Date().getMonth() + 1),
+      ano: item.ano || new Date().getFullYear(),
+      categoria: item.categoria || "Empreiteira",
+      fornecedor: item.fornecedor || "",
+      pago: !!item.pago,
+      observacao: item.observacao || ""
+    });
+    setDialogOpen(true);
+  };
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    try {
+      const periodo = formData.tipo === "previsao"
+        ? `${formData.quinzena}ª Quinzena - ${meses.find(m => m.value === Number(formData.mes))?.label}/${formData.ano}`
+        : "";
+      const payload = {
+        ...formData,
+        valor: parseFloat(formData.valor) || 0,
+        quinzena: Number(formData.quinzena) || 0,
+        mes: Number(formData.mes) || 0,
+        ano: Number(formData.ano) || 0,
+        periodo
+      };
+      if (editing) {
+        await axios.put(`${API}/fluxo-caixa/${editing.id}`, payload);
+        toast.success("Atualizado!");
+      } else {
+        await axios.post(`${API}/fluxo-caixa`, payload);
+        toast.success("Registrado!");
+      }
+      setDialogOpen(false);
+      setEditing(null);
+      fetchData();
+    } catch (err) {
+      toast.error(err.response?.data?.detail || "Erro ao salvar");
+    }
+  };
+
+  const handleDelete = async (id) => {
+    if (!window.confirm("Excluir este registro?")) return;
+    try {
+      await axios.delete(`${API}/fluxo-caixa/${id}`);
+      toast.success("Excluído!");
+      fetchData();
+    } catch {
+      toast.error("Erro ao excluir");
+    }
+  };
+
+  const togglePago = async (item) => {
+    try {
+      await axios.put(`${API}/fluxo-caixa/${item.id}`, { pago: !item.pago });
+      fetchData();
+    } catch {
+      toast.error("Erro ao atualizar");
+    }
+  };
+
+  const caixaItems = items.filter(i => i.tipo === "caixa");
+  const previsaoItems = items.filter(i => i.tipo === "previsao");
+  const pagamentoItems = items.filter(i => i.tipo === "pagamento");
+
+  const anos = [];
+  const anoAtual = new Date().getFullYear();
+  for (let a = anoAtual - 1; a <= anoAtual + 2; a++) anos.push(a);
+
+  return (
+    <Layout>
+      <div className="space-y-6">
+        <div className="flex items-center justify-between">
+          <div>
+            <h1 className="text-3xl font-bold tracking-tight">Fluxo de Caixa</h1>
+            <p className="text-muted-foreground">Controle de caixa, previsões quinzenais e pagamentos da obra</p>
+          </div>
+        </div>
+
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+          <Card data-testid="card-saldo">
+            <CardHeader className="pb-2">
+              <CardTitle className="text-sm text-muted-foreground">Saldo em Caixa</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className={`text-2xl font-bold ${resumo.saldo >= 0 ? 'text-green-600' : 'text-red-600'}`}>{formatCurrency(resumo.saldo)}</div>
+              <p className="text-xs text-muted-foreground mt-1">Entradas − Saídas</p>
+            </CardContent>
+          </Card>
+          <Card>
+            <CardHeader className="pb-2">
+              <CardTitle className="text-sm text-muted-foreground">Total Entradas</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold text-green-600">{formatCurrency(resumo.entradas)}</div>
+            </CardContent>
+          </Card>
+          <Card>
+            <CardHeader className="pb-2">
+              <CardTitle className="text-sm text-muted-foreground">Pagamentos Pagos</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold">{formatCurrency(resumo.total_pago)}</div>
+            </CardContent>
+          </Card>
+          <Card>
+            <CardHeader className="pb-2">
+              <CardTitle className="text-sm text-muted-foreground">A Pagar (Pendente)</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold text-amber-600">{formatCurrency(resumo.total_pendente)}</div>
+            </CardContent>
+          </Card>
+        </div>
+
+        <Tabs value={activeTab} onValueChange={setActiveTab}>
+          <TabsList className="grid grid-cols-3 max-w-md">
+            <TabsTrigger value="caixa" data-testid="tab-caixa">Caixa</TabsTrigger>
+            <TabsTrigger value="previsao" data-testid="tab-previsao">Previsão</TabsTrigger>
+            <TabsTrigger value="pagamento" data-testid="tab-pagamento">Pagamentos</TabsTrigger>
+          </TabsList>
+
+          <TabsContent value="caixa" className="space-y-4">
+            <div className="flex justify-end">
+              {canEdit && (
+                <Button onClick={() => openNew("caixa")} data-testid="btn-novo-caixa">
+                  <Plus className="w-4 h-4 mr-2" />Nova Movimentação
+                </Button>
+              )}
+            </div>
+            <Card>
+              <CardContent className="p-0">
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Data</TableHead>
+                      <TableHead>Movimento</TableHead>
+                      <TableHead>Descrição</TableHead>
+                      <TableHead className="text-right">Valor</TableHead>
+                      {canEdit && <TableHead className="text-center">Ações</TableHead>}
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {loading ? (
+                      <TableRow><TableCell colSpan={canEdit ? 5 : 4} className="text-center py-8 text-muted-foreground">Carregando...</TableCell></TableRow>
+                    ) : caixaItems.length === 0 ? (
+                      <TableRow><TableCell colSpan={canEdit ? 5 : 4} className="text-center py-8 text-muted-foreground">Nenhuma movimentação registrada</TableCell></TableRow>
+                    ) : caixaItems.map(item => (
+                      <TableRow key={item.id}>
+                        <TableCell>{formatDate(item.data)}</TableCell>
+                        <TableCell>
+                          <Badge variant="outline" className={item.movimento === "Entrada" ? "bg-green-100 text-green-700 border-green-300" : "bg-red-100 text-red-700 border-red-300"}>
+                            {item.movimento}
+                          </Badge>
+                        </TableCell>
+                        <TableCell>{item.descricao || "-"}</TableCell>
+                        <TableCell className={`text-right font-semibold ${item.movimento === "Entrada" ? 'text-green-600' : 'text-red-600'}`}>
+                          {item.movimento === "Entrada" ? "+" : "−"} {formatCurrency(item.valor)}
+                        </TableCell>
+                        {canEdit && (
+                          <TableCell className="text-center">
+                            <Button variant="ghost" size="sm" onClick={() => openEdit(item)}><Edit className="w-4 h-4" /></Button>
+                            <Button variant="ghost" size="sm" onClick={() => handleDelete(item.id)}><Trash2 className="w-4 h-4 text-destructive" /></Button>
+                          </TableCell>
+                        )}
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </CardContent>
+            </Card>
+          </TabsContent>
+
+          <TabsContent value="previsao" className="space-y-4">
+            <div className="flex justify-end">
+              {canEdit && (
+                <Button onClick={() => openNew("previsao")} data-testid="btn-nova-previsao">
+                  <Plus className="w-4 h-4 mr-2" />Nova Previsão
+                </Button>
+              )}
+            </div>
+            <Card>
+              <CardContent className="p-0">
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Período</TableHead>
+                      <TableHead>Descrição</TableHead>
+                      <TableHead className="text-right">Valor</TableHead>
+                      {canEdit && <TableHead className="text-center">Ações</TableHead>}
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {loading ? (
+                      <TableRow><TableCell colSpan={canEdit ? 4 : 3} className="text-center py-8 text-muted-foreground">Carregando...</TableCell></TableRow>
+                    ) : previsaoItems.length === 0 ? (
+                      <TableRow><TableCell colSpan={canEdit ? 4 : 3} className="text-center py-8 text-muted-foreground">Nenhuma previsão registrada</TableCell></TableRow>
+                    ) : previsaoItems.map(item => (
+                      <TableRow key={item.id}>
+                        <TableCell className="font-medium">{item.periodo || "-"}</TableCell>
+                        <TableCell>{item.descricao || "-"}</TableCell>
+                        <TableCell className="text-right font-semibold">{formatCurrency(item.valor)}</TableCell>
+                        {canEdit && (
+                          <TableCell className="text-center">
+                            <Button variant="ghost" size="sm" onClick={() => openEdit(item)}><Edit className="w-4 h-4" /></Button>
+                            <Button variant="ghost" size="sm" onClick={() => handleDelete(item.id)}><Trash2 className="w-4 h-4 text-destructive" /></Button>
+                          </TableCell>
+                        )}
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </CardContent>
+            </Card>
+          </TabsContent>
+
+          <TabsContent value="pagamento" className="space-y-4">
+            <div className="flex justify-end">
+              {canEdit && (
+                <Button onClick={() => openNew("pagamento")} data-testid="btn-novo-pagamento">
+                  <Plus className="w-4 h-4 mr-2" />Novo Pagamento
+                </Button>
+              )}
+            </div>
+            <Card>
+              <CardContent className="p-0">
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Data</TableHead>
+                      <TableHead>Categoria</TableHead>
+                      <TableHead>Fornecedor</TableHead>
+                      <TableHead>Descrição</TableHead>
+                      <TableHead className="text-right">Valor</TableHead>
+                      <TableHead className="text-center">Status</TableHead>
+                      {canEdit && <TableHead className="text-center">Ações</TableHead>}
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {loading ? (
+                      <TableRow><TableCell colSpan={canEdit ? 7 : 6} className="text-center py-8 text-muted-foreground">Carregando...</TableCell></TableRow>
+                    ) : pagamentoItems.length === 0 ? (
+                      <TableRow><TableCell colSpan={canEdit ? 7 : 6} className="text-center py-8 text-muted-foreground">Nenhum pagamento registrado</TableCell></TableRow>
+                    ) : pagamentoItems.map(item => (
+                      <TableRow key={item.id}>
+                        <TableCell>{formatDate(item.data)}</TableCell>
+                        <TableCell><Badge variant="outline">{item.categoria || "-"}</Badge></TableCell>
+                        <TableCell>{item.fornecedor || "-"}</TableCell>
+                        <TableCell>{item.descricao || "-"}</TableCell>
+                        <TableCell className="text-right font-semibold">{formatCurrency(item.valor)}</TableCell>
+                        <TableCell className="text-center">
+                          <Badge
+                            className={`cursor-pointer ${item.pago ? 'bg-green-100 text-green-700 border-green-300' : 'bg-amber-100 text-amber-700 border-amber-300'}`}
+                            variant="outline"
+                            onClick={() => canEdit && togglePago(item)}
+                          >
+                            {item.pago ? "Pago" : "Pendente"}
+                          </Badge>
+                        </TableCell>
+                        {canEdit && (
+                          <TableCell className="text-center">
+                            <Button variant="ghost" size="sm" onClick={() => openEdit(item)}><Edit className="w-4 h-4" /></Button>
+                            <Button variant="ghost" size="sm" onClick={() => handleDelete(item.id)}><Trash2 className="w-4 h-4 text-destructive" /></Button>
+                          </TableCell>
+                        )}
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </CardContent>
+            </Card>
+          </TabsContent>
+        </Tabs>
+
+        <Dialog open={dialogOpen} onOpenChange={(open) => { setDialogOpen(open); if (!open) setEditing(null); }}>
+          <DialogContent className="max-w-lg">
+            <DialogHeader>
+              <DialogTitle>
+                {editing ? "Editar" : "Novo"} {formData.tipo === "caixa" ? "Movimento de Caixa" : formData.tipo === "previsao" ? "Previsão Quinzenal" : "Pagamento"}
+              </DialogTitle>
+              <DialogDescription>Preencha os dados abaixo</DialogDescription>
+            </DialogHeader>
+            <form onSubmit={handleSubmit} className="space-y-4">
+              {formData.tipo === "caixa" && (
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <Label>Movimento *</Label>
+                    <Select value={formData.movimento} onValueChange={(v) => setFormData({ ...formData, movimento: v })}>
+                      <SelectTrigger><SelectValue /></SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="Entrada">Entrada</SelectItem>
+                        <SelectItem value="Saída">Saída</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="space-y-2">
+                    <Label>Data</Label>
+                    <Input type="date" value={formData.data} onChange={(e) => setFormData({ ...formData, data: e.target.value })} />
+                  </div>
+                </div>
+              )}
+
+              {formData.tipo === "previsao" && (
+                <div className="grid grid-cols-3 gap-4">
+                  <div className="space-y-2">
+                    <Label>Quinzena</Label>
+                    <Select value={String(formData.quinzena)} onValueChange={(v) => setFormData({ ...formData, quinzena: Number(v) })}>
+                      <SelectTrigger><SelectValue /></SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="1">1ª Quinzena</SelectItem>
+                        <SelectItem value="2">2ª Quinzena</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="space-y-2">
+                    <Label>Mês</Label>
+                    <Select value={String(formData.mes)} onValueChange={(v) => setFormData({ ...formData, mes: Number(v) })}>
+                      <SelectTrigger><SelectValue /></SelectTrigger>
+                      <SelectContent>
+                        {meses.map(m => <SelectItem key={m.value} value={String(m.value)}>{m.label}</SelectItem>)}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="space-y-2">
+                    <Label>Ano</Label>
+                    <Select value={String(formData.ano)} onValueChange={(v) => setFormData({ ...formData, ano: Number(v) })}>
+                      <SelectTrigger><SelectValue /></SelectTrigger>
+                      <SelectContent>
+                        {anos.map(a => <SelectItem key={a} value={String(a)}>{a}</SelectItem>)}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </div>
+              )}
+
+              {formData.tipo === "pagamento" && (
+                <>
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="space-y-2">
+                      <Label>Categoria *</Label>
+                      <Select value={formData.categoria} onValueChange={(v) => setFormData({ ...formData, categoria: v })}>
+                        <SelectTrigger data-testid="select-categoria"><SelectValue /></SelectTrigger>
+                        <SelectContent>
+                          {categorias.map(c => <SelectItem key={c} value={c}>{c}</SelectItem>)}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div className="space-y-2">
+                      <Label>Data</Label>
+                      <Input type="date" value={formData.data} onChange={(e) => setFormData({ ...formData, data: e.target.value })} />
+                    </div>
+                  </div>
+                  <div className="space-y-2">
+                    <Label>Fornecedor</Label>
+                    <Input value={formData.fornecedor} onChange={(e) => setFormData({ ...formData, fornecedor: e.target.value })} placeholder="Nome do fornecedor / prestador" />
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <Switch id="pago" checked={formData.pago} onCheckedChange={(v) => setFormData({ ...formData, pago: v })} />
+                    <Label htmlFor="pago" className="cursor-pointer">Pago</Label>
+                  </div>
+                </>
+              )}
+
+              <div className="space-y-2">
+                <Label>Descrição</Label>
+                <Input value={formData.descricao} onChange={(e) => setFormData({ ...formData, descricao: e.target.value })} placeholder="Descrição" />
+              </div>
+              <div className="space-y-2">
+                <Label>Valor (R$) *</Label>
+                <Input type="number" step="0.01" min="0" required value={formData.valor} onChange={(e) => setFormData({ ...formData, valor: e.target.value })} placeholder="0,00" />
+              </div>
+
+              <DialogFooter>
+                <Button type="submit">{editing ? "Atualizar" : "Cadastrar"}</Button>
+              </DialogFooter>
+            </form>
+          </DialogContent>
+        </Dialog>
+      </div>
+    </Layout>
+  );
+};
+
+
 // App
 function App() {
   return (
@@ -2665,6 +3135,7 @@ function App() {
           <Route path="/dizimistas" element={<ProtectedRoute><DizimistasPage /></ProtectedRoute>} />
           <Route path="/contribuicoes" element={<ProtectedRoute><ContribuicoesPage /></ProtectedRoute>} />
           <Route path="/relatorios" element={<ProtectedRoute><RelatoriosPage /></ProtectedRoute>} />
+          <Route path="/fluxo-caixa" element={<ProtectedRoute><FluxoCaixaPage /></ProtectedRoute>} />
           <Route path="/configuracoes" element={<ProtectedRoute><ConfiguracoesPage /></ProtectedRoute>} />
         </Routes>
       </BrowserRouter>
