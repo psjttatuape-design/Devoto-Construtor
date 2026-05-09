@@ -2047,77 +2047,7 @@ const RelatoriosPage = () => {
               </p>
             </CardContent>
           </Card>
-
-          <Card data-testid="card-total-contribuicoes">
-            <CardHeader className="pb-2">
-              <CardTitle className="text-sm font-medium text-muted-foreground">Total Contribuições</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="text-3xl font-bold">{loading ? "-" : resumo?.total_contribuicoes || 0}</div>
-              <p className="text-xs text-muted-foreground mt-1">
-                Registros no sistema
-              </p>
-            </CardContent>
-          </Card>
         </div>
-
-        {/* Monthly Contributions Chart */}
-        <Card className="bento-card-wide" data-testid="card-grafico">
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <BarChart3 className="w-5 h-5" />
-              Contribuições Mensais
-            </CardTitle>
-            <CardDescription>
-              Últimos 15 meses de arrecadação {mediaArrecadacao > 0 && `• Média: ${formatCurrency(mediaArrecadacao)}`}
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            {loading ? (
-              <div className="h-[350px] flex items-center justify-center text-muted-foreground">
-                Carregando...
-              </div>
-            ) : chartData.length > 0 ? (
-              <div className="h-[350px]">
-                <ResponsiveContainer width="100%" height="100%">
-                  <ComposedChart data={chartData} margin={{ top: 10, right: 10, left: 10, bottom: 10 }}>
-                    <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
-                    <XAxis 
-                      dataKey="mes" 
-                      tick={{ fontSize: 11, fill: 'hsl(var(--muted-foreground))' }}
-                      axisLine={{ stroke: 'hsl(var(--border))' }}
-                    />
-                    <YAxis 
-                      tick={{ fontSize: 12, fill: 'hsl(var(--muted-foreground))' }}
-                      axisLine={{ stroke: 'hsl(var(--border))' }}
-                      tickFormatter={(value) => `R$${(value/1000).toFixed(0)}k`}
-                    />
-                    <Tooltip content={<CustomTooltip />} />
-                    <Bar 
-                      dataKey="valor" 
-                      fill="#3b82f6" 
-                      radius={[4, 4, 0, 0]}
-                      name="Arrecadado"
-                    />
-                    <Line 
-                      type="monotone" 
-                      dataKey="media" 
-                      stroke="#6b9e6b" 
-                      strokeWidth={2}
-                      strokeDasharray="5 5"
-                      dot={false}
-                      name="Média"
-                    />
-                  </ComposedChart>
-                </ResponsiveContainer>
-              </div>
-            ) : (
-              <div className="h-[350px] flex items-center justify-center text-muted-foreground">
-                Nenhum dado disponível
-              </div>
-            )}
-          </CardContent>
-        </Card>
 
         <Card>
           <CardHeader>
