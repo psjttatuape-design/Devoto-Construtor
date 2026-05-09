@@ -1646,63 +1646,6 @@ const ContribuicoesPage = () => {
           </CardContent>
         </Card>
 
-        {/* Table - Últimos 12 Meses (Valores do Relatório) */}
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-lg">Últimos 12 Meses</CardTitle>
-            <CardDescription>Valores registrados no relatório de contribuições mensais</CardDescription>
-          </CardHeader>
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>Mês/Ano</TableHead>
-                <TableHead className="text-center">Contrib. Registradas</TableHead>
-                <TableHead className="text-right">Valor no Relatório</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {loading ? (
-                <TableRow>
-                  <TableCell colSpan={3} className="text-center py-8 text-muted-foreground">
-                    Carregando...
-                  </TableCell>
-                </TableRow>
-              ) : (
-                <>
-                  {ultimos12Meses.map((item) => {
-                    const key = `${item.mes}-${item.ano}`;
-                    const valorRelatorio = valoresMensaisMap[key]?.valor || 0;
-                    
-                    // Contar contribuições desse mês/ano específico
-                    const contribCount = contribuicoes.filter(c => {
-                      if (!c.data) return false;
-                      const contribAno = parseInt(c.data.substring(0, 4));
-                      const contribMes = parseInt(c.mes_referencia || "0");
-                      return contribMes === item.mes && contribAno === item.ano;
-                    }).length;
-                    
-                    return (
-                      <TableRow key={key}>
-                        <TableCell className="font-medium">{item.label}</TableCell>
-                        <TableCell className="text-center">{contribCount}</TableCell>
-                        <TableCell className="text-right font-semibold text-green-600">
-                          {formatCurrency(valorRelatorio)}
-                        </TableCell>
-                      </TableRow>
-                    );
-                  })}
-                  {/* Linha de Total Geral */}
-                  <TableRow className="bg-muted/50 font-bold">
-                    <TableCell>TOTAL (12 MESES)</TableCell>
-                    <TableCell className="text-center">{totalContribUltimos12}</TableCell>
-                    <TableCell className="text-right text-green-700">{formatCurrency(totalUltimos12Meses)}</TableCell>
-                  </TableRow>
-                </>
-              )}
-            </TableBody>
-          </Table>
-        </Card>
-
         {/* Lista Detalhada - Apenas Admin */}
         {isAdmin && showDetailedList && (
           <Card className="mt-6">
