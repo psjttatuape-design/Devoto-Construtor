@@ -233,7 +233,6 @@ const Sidebar = ({ isOpen, onClose }) => {
     { path: "/", icon: Home, label: "Painel Geral", show: hasPermission("dashboard", "view") || user?.role === "admin" },
     { path: "/dizimistas", icon: Users, label: "Devotos", show: hasPermission("dizimistas", "view") },
     { path: "/contribuicoes", icon: DollarSign, label: "Contribuições", show: hasPermission("contribuicoes", "view") },
-    { path: "/relatorios", icon: FileText, label: "Relatórios", show: hasPermission("relatorios", "view") },
     { path: "/fluxo-caixa", icon: Wallet, label: "Fluxo de Caixa", show: hasPermission("fluxo_caixa", "view") || user?.role === "admin" },
     { path: "/configuracoes", icon: Settings, label: "Configurações", show: user?.role === "admin" },
   ];
@@ -2662,6 +2661,7 @@ const FluxoCaixaPage = () => {
   const [quinzenas, setQuinzenas] = useState([]);
   const [loading, setLoading] = useState(true);
   const [setupOpen, setSetupOpen] = useState(false);
+  const [editingCell, setEditingCell] = useState(null); // { idx, key }
   const [setupData, setSetupData] = useState({
     data_inicial: new Date().toISOString().split('T')[0],
     quantidade: 14,
@@ -2735,6 +2735,34 @@ const FluxoCaixaPage = () => {
     } catch {
       toast.error("Erro ao salvar");
     }
+  };
+
+  const EditableCell = ({ idx, fieldKey, value }) => {
+    const isEditing = editingCell?.idx === idx && editingCell?.key === fieldKey;
+    if (!canEdit) return <span>{formatCurrency(value)}</span>;
+    if (isEditing) {
+      return (
+        <input
+          autoFocus
+          type="number"
+          step="0.01"
+          className="w-full text-right bg-transparent border-none focus:outline-none focus:ring-1 focus:ring-blue-500 rounded px-2 py-1"
+          defaultValue={value || 0}
+          onChange={(e) => handleCellChange(idx, fieldKey, e.target.value)}
+          onBlur={() => { setEditingCell(null); handleCellBlur(idx, fieldKey); }}
+          onKeyDown={(e) => { if (e.key === "Enter") e.currentTarget.blur(); }}
+        />
+      );
+    }
+    return (
+      <button
+        type="button"
+        onClick={() => setEditingCell({ idx, key: fieldKey })}
+        className="w-full text-right px-2 py-1 hover:bg-blue-50 dark:hover:bg-blue-950/40 rounded text-foreground"
+      >
+        {formatCurrency(value)}
+      </button>
+    );
   };
 
   const handleGerar = async () => {
@@ -2864,17 +2892,9 @@ const FluxoCaixaPage = () => {
                   <tr className="bg-blue-50 dark:bg-blue-950/30 font-semibold">
                     <td className="p-3 sticky left-0 bg-blue-50 dark:bg-blue-950/30 z-10 border-b">CAIXA (Saldo Anterior)</td>
                     {saldos.map((s, idx) => (
-                      <td key={idx} className="p-3 text-right border-b">
-                        {idx === 0 && canEdit ? (
-                          <input
-                            type="number"
-                            step="0.01"
-                            className="w-full text-right bg-transparent border-none focus:outline-none focus:ring-1 focus:ring-blue-500 rounded px-1"
-                            value={quinzenas[0].saldo_inicial || 0}
-                            onChange={(e) => handleCellChange(0, "saldo_inicial", e.target.value)}
-                            onBlur={() => handleCellBlur(0, "saldo_inicial")}
-                            data-testid="cell-saldo-inicial"
-                          />
+                      <td key={idx} className="p-1 text-right border-b">
+                        {idx === 0 ? (
+                          <EditableCell idx={0} fieldKey="saldo_inicial" value={quinzenas[0].saldo_inicial || 0} />
                         ) : formatCurrency(s.caixa)}
                       </td>
                     ))}
@@ -2889,16 +2909,7 @@ const FluxoCaixaPage = () => {
                       <td className="p-3 sticky left-0 bg-background z-10 border-b">{field.label}</td>
                       {quinzenas.map((q, idx) => (
                         <td key={q.id} className="p-1 text-right border-b">
-                          {canEdit ? (
-                            <input
-                              type="number"
-                              step="0.01"
-                              className="w-full text-right bg-transparent border-none focus:outline-none focus:ring-1 focus:ring-blue-500 rounded px-2 py-1"
-                              value={q[field.key] || 0}
-                              onChange={(e) => handleCellChange(idx, field.key, e.target.value)}
-                              onBlur={() => handleCellBlur(idx, field.key)}
-                            />
-                          ) : formatCurrency(q[field.key])}
+                          <EditableCell idx={idx} fieldKey={field.key} value={q[field.key]} />
                         </td>
                       ))}
                     </tr>
@@ -2919,16 +2930,7 @@ const FluxoCaixaPage = () => {
                       <td className="p-3 sticky left-0 bg-background z-10 border-b">{field.label}</td>
                       {quinzenas.map((q, idx) => (
                         <td key={q.id} className="p-1 text-right border-b">
-                          {canEdit ? (
-                            <input
-                              type="number"
-                              step="0.01"
-                              className="w-full text-right bg-transparent border-none focus:outline-none focus:ring-1 focus:ring-blue-500 rounded px-2 py-1"
-                              value={q[field.key] || 0}
-                              onChange={(e) => handleCellChange(idx, field.key, e.target.value)}
-                              onBlur={() => handleCellBlur(idx, field.key)}
-                            />
-                          ) : formatCurrency(q[field.key])}
+                          <EditableCell idx={idx} fieldKey={field.key} value={q[field.key]} />
                         </td>
                       ))}
                     </tr>
@@ -3005,7 +3007,6 @@ function App() {
           <Route path="/" element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />
           <Route path="/dizimistas" element={<ProtectedRoute><DizimistasPage /></ProtectedRoute>} />
           <Route path="/contribuicoes" element={<ProtectedRoute><ContribuicoesPage /></ProtectedRoute>} />
-          <Route path="/relatorios" element={<ProtectedRoute><RelatoriosPage /></ProtectedRoute>} />
           <Route path="/fluxo-caixa" element={<ProtectedRoute><FluxoCaixaPage /></ProtectedRoute>} />
           <Route path="/configuracoes" element={<ProtectedRoute><ConfiguracoesPage /></ProtectedRoute>} />
         </Routes>
