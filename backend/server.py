@@ -1360,6 +1360,119 @@ async def update_fluxo_quinzenal(item_id: str, data: FluxoQuinzenalUpdate, curre
     item = await db.fluxo_quinzenal.find_one({"id": item_id}, {"_id": 0})
     return item
 
+@api_router.get("/fluxo-quinzenal/export/excel")
+async def export_fluxo_quinzenal(current_user: dict = Depends(get_current_user)):
+    if not check_permission(current_user, "fluxo_caixa", "view"):
+        raise HTTPException(status_code=403, detail="Sem permissão")
+    from openpyxl import Workbook
+    from openpyxl.styles import Font, PatternFill, Alignment, Border, Side
+    from io import BytesIO
+
+    items = await db.fluxo_quinzenal.find({}, {"_id": 0}).sort("data", 1).to_list(1000)
+
+    wb = Workbook()
+    ws = wb.active
+    ws.title = "Fluxo de Caixa"
+
+    bold = Font(bold=True)
+    header_fill = PatternFill(start_color="D9E1F2", end_color="D9E1F2", fill_type="solid")
+    entrada_fill = PatternFill(start_color="E2EFDA", end_color="E2EFDA", fill_type="solid")
+    pagamento_fill = PatternFill(start_color="FCE4D6", end_color="FCE4D6", fill_type="solid")
+    saldo_fill = PatternFill(start_color="FFF2CC", end_color="FFF2CC", fill_type="solid")
+    thin = Side(border_style="thin", color="999999")
+    border = Border(left=thin, right=thin, top=thin, bottom=thin)
+    center = Alignment(horizontal="center", vertical="center")
+
+    n = len(items)
+
+    # Row 1: Data + datas
+    ws.cell(row=1, column=1, value="Data").font = bold
+    ws.cell(row=1, column=1).fill = header_fill
+    for i, q in enumerate(items):
+        c = ws.cell(row=1, column=2+i, value=q.get("data"))
+        c.font = bold
+        c.fill = header_fill
+        c.alignment = center
+
+    # Row 2: CAIXA
+    ws.cell(row=2, column=1, value="CAIXA").font = bold
+    for i, q in enumerate(items):
+        if i == 0:
+            ws.cell(row=2, column=2+i, value=q.get("saldo_inicial", 0))
+        else:
+            # Reference previous SALDO (row 23)
+            prev_col = ws.cell(row=23, column=1+i).coordinate
+            ws.cell(row=2, column=2+i, value=f"={prev_col}")
+
+    # Row 4: ENTRADAS header
+    ws.cell(row=4, column=1, value="ENTRADAS").font = bold
+    ws.cell(row=4, column=1).fill = entrada_fill
+
+    # Rows 5,6,8: Doações, Eventos, Previsão Devoto
+    entrada_map = {5: ("Doações", "doacoes"), 6: ("Eventos", "eventos"), 8: ("Previsão Devoto", "previsao_devoto")}
+    for row, (label, key) in entrada_map.items():
+        ws.cell(row=row, column=1, value=label)
+        for i, q in enumerate(items):
+            ws.cell(row=row, column=2+i, value=q.get(key, 0))
+
+    # Row 10: PAGAMENTOS header
+    ws.cell(row=10, column=1, value="PAGAMENTOS").font = bold
+    ws.cell(row=10, column=1).fill = pagamento_fill
+
+    # Rows 11..20: pagamento categories (Cruz=row18 + Iluminação=row19 combined as 'Cruz Iluminação' on row18, row19 reserved for compatibility)
+    pagamento_rows = [
+        (11, "Empreiteira", "empreiteira"),
+        (12, "Som", "som"),
+        (13, "Marmoraria", "marmoraria"),
+        (14, "Mat Construção", "mat_construcao"),
+        (15, "Acabamento", "acabamento"),
+        (16, "Pintura", "pintura"),
+        (17, "Marceneiro", "marceneiro"),
+        (18, "Cruz Iluminação", "cruz_iluminacao"),
+        (20, "Outros", "outros"),
+    ]
+    for row, label, key in pagamento_rows:
+        ws.cell(row=row, column=1, value=label)
+        for i, q in enumerate(items):
+            ws.cell(row=row, column=2+i, value=q.get(key, 0))
+
+    # Row 21: SUM pagamentos
+    for i in range(n):
+        col_letter = ws.cell(row=11, column=2+i).column_letter
+        ws.cell(row=21, column=2+i, value=f"=SUM({col_letter}11:{col_letter}20)").font = bold
+
+    # Row 23: SALDO
+    ws.cell(row=23, column=1, value="SALDO").font = bold
+    ws.cell(row=23, column=1).fill = saldo_fill
+    for i in range(n):
+        col_letter = ws.cell(row=2, column=2+i).column_letter
+        # SALDO = CAIXA(row2) + Doações(row5) + Eventos(row6) + Previsão(row8) - SUM(row21)
+        formula = f"={col_letter}2+{col_letter}5+{col_letter}6+{col_letter}8-{col_letter}21"
+        c = ws.cell(row=23, column=2+i, value=formula)
+        c.font = bold
+        c.fill = saldo_fill
+
+    # Format currency BRL on all numeric cells (rows 2, 5, 6, 8, 11-20, 21, 23)
+    money_rows = [2, 5, 6, 8, 11, 12, 13, 14, 15, 16, 17, 18, 20, 21, 23]
+    for r in money_rows:
+        for i in range(n):
+            cell = ws.cell(row=r, column=2+i)
+            cell.number_format = 'R$ #,##0.00'
+
+    # Column widths
+    ws.column_dimensions['A'].width = 22
+    for i in range(n):
+        ws.column_dimensions[ws.cell(row=1, column=2+i).column_letter].width = 14
+
+    buffer = BytesIO()
+    wb.save(buffer)
+    buffer.seek(0)
+    return StreamingResponse(
+        buffer,
+        media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        headers={"Content-Disposition": "attachment; filename=fluxo_caixa.xlsx"}
+    )
+
 @api_router.delete("/fluxo-quinzenal/{item_id}")
 async def delete_fluxo_quinzenal(item_id: str, current_user: dict = Depends(get_current_user)):
     if not check_permission(current_user, "fluxo_caixa", "edit"):

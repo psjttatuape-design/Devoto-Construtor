@@ -2773,6 +2773,23 @@ const FluxoCaixaPage = () => {
           </div>
           {canEdit && (
             <div className="flex gap-2">
+              <Button variant="outline" onClick={async () => {
+                try {
+                  const res = await axios.get(`${API}/fluxo-quinzenal/export/excel`, { responseType: 'blob' });
+                  const url = window.URL.createObjectURL(new Blob([res.data]));
+                  const link = document.createElement('a');
+                  link.href = url;
+                  link.setAttribute('download', 'fluxo_caixa.xlsx');
+                  document.body.appendChild(link);
+                  link.click();
+                  link.remove();
+                  window.URL.revokeObjectURL(url);
+                } catch {
+                  toast.error("Erro ao exportar");
+                }
+              }} data-testid="btn-exportar-fluxo">
+                <Download className="w-4 h-4 mr-2" />Exportar Excel
+              </Button>
               {quinzenas.length === 0 ? (
                 <Button onClick={() => setSetupOpen(true)} data-testid="btn-gerar-quinzenas">
                   <Plus className="w-4 h-4 mr-2" />Gerar Quinzenas
