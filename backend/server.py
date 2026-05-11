@@ -253,6 +253,62 @@ class FluxoCaixaUpdate(BaseModel):
     pago: Optional[bool] = None
     observacao: Optional[str] = None
 
+# Fluxo Quinzenal (matriz tipo planilha)
+class FluxoQuinzenal(BaseModel):
+    model_config = ConfigDict(extra="ignore")
+    id: str = Field(default_factory=lambda: str(uuid.uuid4()))
+    data: str  # YYYY-MM-DD (data da quinzena)
+    saldo_inicial: float = 0.0  # usado apenas na primeira quinzena
+    # Entradas
+    doacoes: float = 0.0
+    eventos: float = 0.0
+    previsao_devoto: float = 0.0
+    # Pagamentos
+    empreiteira: float = 0.0
+    som: float = 0.0
+    marmoraria: float = 0.0
+    mat_construcao: float = 0.0
+    acabamento: float = 0.0
+    pintura: float = 0.0
+    marceneiro: float = 0.0
+    cruz_iluminacao: float = 0.0
+    outros: float = 0.0
+    observacao: str = ""
+
+class FluxoQuinzenalCreate(BaseModel):
+    data: str
+    saldo_inicial: float = 0.0
+    doacoes: float = 0.0
+    eventos: float = 0.0
+    previsao_devoto: float = 0.0
+    empreiteira: float = 0.0
+    som: float = 0.0
+    marmoraria: float = 0.0
+    mat_construcao: float = 0.0
+    acabamento: float = 0.0
+    pintura: float = 0.0
+    marceneiro: float = 0.0
+    cruz_iluminacao: float = 0.0
+    outros: float = 0.0
+    observacao: str = ""
+
+class FluxoQuinzenalUpdate(BaseModel):
+    data: Optional[str] = None
+    saldo_inicial: Optional[float] = None
+    doacoes: Optional[float] = None
+    eventos: Optional[float] = None
+    previsao_devoto: Optional[float] = None
+    empreiteira: Optional[float] = None
+    som: Optional[float] = None
+    marmoraria: Optional[float] = None
+    mat_construcao: Optional[float] = None
+    acabamento: Optional[float] = None
+    pintura: Optional[float] = None
+    marceneiro: Optional[float] = None
+    cruz_iluminacao: Optional[float] = None
+    outros: Optional[float] = None
+    observacao: Optional[str] = None
+
 # Helper functions
 def hash_password(password: str) -> str:
     return pwd_context.hash(password)
@@ -1271,6 +1327,71 @@ async def resumo_saldo(current_user: dict = Depends(get_current_user)):
         "total_pago": total_pago,
         "total_pendente": total_pendente,
     }
+
+
+# Fluxo Quinzenal Routes (matriz tipo planilha)
+@api_router.get("/fluxo-quinzenal")
+async def list_fluxo_quinzenal(current_user: dict = Depends(get_current_user)):
+    if not check_permission(current_user, "fluxo_caixa", "view"):
+        raise HTTPException(status_code=403, detail="Sem permissão")
+    items = await db.fluxo_quinzenal.find({}, {"_id": 0}).sort("data", 1).to_list(1000)
+    return items
+
+@api_router.post("/fluxo-quinzenal")
+async def create_fluxo_quinzenal(data: FluxoQuinzenalCreate, current_user: dict = Depends(get_current_user)):
+    if not check_permission(current_user, "fluxo_caixa", "edit"):
+        raise HTTPException(status_code=403, detail="Sem permissão")
+    payload = data.model_dump()
+    item = FluxoQuinzenal(**payload).model_dump()
+    await db.fluxo_quinzenal.insert_one(item)
+    item.pop("_id", None)
+    return item
+
+@api_router.put("/fluxo-quinzenal/{item_id}")
+async def update_fluxo_quinzenal(item_id: str, data: FluxoQuinzenalUpdate, current_user: dict = Depends(get_current_user)):
+    if not check_permission(current_user, "fluxo_caixa", "edit"):
+        raise HTTPException(status_code=403, detail="Sem permissão")
+    update_data = {k: v for k, v in data.model_dump().items() if v is not None}
+    if not update_data:
+        raise HTTPException(status_code=400, detail="Nenhum dado para atualizar")
+    result = await db.fluxo_quinzenal.update_one({"id": item_id}, {"$set": update_data})
+    if result.matched_count == 0:
+        raise HTTPException(status_code=404, detail="Registro não encontrado")
+    item = await db.fluxo_quinzenal.find_one({"id": item_id}, {"_id": 0})
+    return item
+
+@api_router.delete("/fluxo-quinzenal/{item_id}")
+async def delete_fluxo_quinzenal(item_id: str, current_user: dict = Depends(get_current_user)):
+    if not check_permission(current_user, "fluxo_caixa", "edit"):
+        raise HTTPException(status_code=403, detail="Sem permissão")
+    result = await db.fluxo_quinzenal.delete_one({"id": item_id})
+    if result.deleted_count == 0:
+        raise HTTPException(status_code=404, detail="Registro não encontrado")
+    return {"message": "Registro excluído"}
+
+@api_router.post("/fluxo-quinzenal/gerar")
+async def gerar_quinzenas(payload: dict, current_user: dict = Depends(get_current_user)):
+    """Gera N quinzenas a partir de uma data inicial (cada 14 dias). 
+       Payload: {data_inicial: 'YYYY-MM-DD', quantidade: int, saldo_inicial: float}"""
+    if not check_permission(current_user, "fluxo_caixa", "edit"):
+        raise HTTPException(status_code=403, detail="Sem permissão")
+    from datetime import timedelta
+    data_inicial_str = payload.get("data_inicial")
+    quantidade = int(payload.get("quantidade", 14))
+    saldo_inicial = float(payload.get("saldo_inicial", 0.0))
+    if not data_inicial_str:
+        raise HTTPException(status_code=400, detail="data_inicial obrigatória")
+    dt = datetime.strptime(data_inicial_str, "%Y-%m-%d")
+    created = []
+    for i in range(quantidade):
+        item = FluxoQuinzenal(
+            data=(dt + timedelta(days=14*i)).strftime("%Y-%m-%d"),
+            saldo_inicial=saldo_inicial if i == 0 else 0.0
+        ).model_dump()
+        await db.fluxo_quinzenal.insert_one(item)
+        item.pop("_id", None)
+        created.append(item)
+    return {"created": len(created), "items": created}
 
 
 

@@ -2654,62 +2654,26 @@ const ConfiguracoesPage = () => {
   );
 };
 
-// Fluxo de Caixa Page
+// Fluxo de Caixa Page (matriz quinzenal estilo planilha)
 const FluxoCaixaPage = () => {
   const { hasPermission } = useAuth();
   const canEdit = hasPermission("fluxo_caixa", "edit");
 
-  const [items, setItems] = useState([]);
-  const [resumo, setResumo] = useState({ entradas: 0, saidas: 0, saldo: 0, total_pago: 0, total_pendente: 0 });
+  const [quinzenas, setQuinzenas] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [activeTab, setActiveTab] = useState("caixa");
-  const [dialogOpen, setDialogOpen] = useState(false);
-  const [editing, setEditing] = useState(null);
-
-  const meses = [
-    { value: 1, label: "Janeiro" }, { value: 2, label: "Fevereiro" },
-    { value: 3, label: "Março" }, { value: 4, label: "Abril" },
-    { value: 5, label: "Maio" }, { value: 6, label: "Junho" },
-    { value: 7, label: "Julho" }, { value: 8, label: "Agosto" },
-    { value: 9, label: "Setembro" }, { value: 10, label: "Outubro" },
-    { value: 11, label: "Novembro" }, { value: 12, label: "Dezembro" }
-  ];
-
-  const categorias = [
-    "Empreiteira", "Arquitetas", "Material Construção", "Acabamentos",
-    "Marmoraria", "Marceneiro", "Som", "Eletricista", "Outros"
-  ];
-
-  const getEmptyForm = () => {
-    const hoje = new Date().toISOString().split('T')[0];
-    return {
-      tipo: activeTab === "caixa" ? "caixa" : activeTab === "previsao" ? "previsao" : "pagamento",
-      descricao: "",
-      valor: "",
-      data: hoje,
-      movimento: "Entrada",
-      quinzena: 1,
-      mes: new Date().getMonth() + 1,
-      ano: new Date().getFullYear(),
-      categoria: "Empreiteira",
-      fornecedor: "",
-      pago: false,
-      observacao: ""
-    };
-  };
-
-  const [formData, setFormData] = useState(getEmptyForm());
+  const [setupOpen, setSetupOpen] = useState(false);
+  const [setupData, setSetupData] = useState({
+    data_inicial: new Date().toISOString().split('T')[0],
+    quantidade: 14,
+    saldo_inicial: 0
+  });
 
   const fetchData = useCallback(async () => {
     try {
       setLoading(true);
-      const [itemsRes, resumoRes] = await Promise.all([
-        axios.get(`${API}/fluxo-caixa`),
-        axios.get(`${API}/fluxo-caixa/resumo/saldo`)
-      ]);
-      setItems(itemsRes.data);
-      setResumo(resumoRes.data);
-    } catch (error) {
+      const res = await axios.get(`${API}/fluxo-quinzenal`);
+      setQuinzenas(res.data);
+    } catch (err) {
       toast.error("Erro ao carregar fluxo de caixa");
     } finally {
       setLoading(false);
@@ -2720,401 +2684,291 @@ const FluxoCaixaPage = () => {
 
   const formatCurrency = (v) => new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(v || 0);
   const formatDate = (d) => {
-    if (!d) return "-";
+    if (!d) return "";
     const parts = d.split("-");
-    return parts.length === 3 ? `${parts[2]}/${parts[1]}/${parts[0]}` : d;
+    return parts.length === 3 ? `${parts[2]}/${parts[1]}` : d;
   };
 
-  const openNew = (tipo) => {
-    setEditing(null);
-    setActiveTab(tipo);
-    setFormData({ ...getEmptyForm(), tipo });
-    setDialogOpen(true);
-  };
+  const entradaFields = [
+    { key: "doacoes", label: "Doações" },
+    { key: "eventos", label: "Eventos" },
+    { key: "previsao_devoto", label: "Previsão Devoto" },
+  ];
 
-  const openEdit = (item) => {
-    setEditing(item);
-    setFormData({
-      tipo: item.tipo,
-      descricao: item.descricao || "",
-      valor: String(item.valor || ""),
-      data: item.data || "",
-      movimento: item.movimento || "Entrada",
-      quinzena: item.quinzena || 1,
-      mes: item.mes || (new Date().getMonth() + 1),
-      ano: item.ano || new Date().getFullYear(),
-      categoria: item.categoria || "Empreiteira",
-      fornecedor: item.fornecedor || "",
-      pago: !!item.pago,
-      observacao: item.observacao || ""
+  const pagamentoFields = [
+    { key: "empreiteira", label: "Empreiteira" },
+    { key: "som", label: "Som" },
+    { key: "marmoraria", label: "Marmoraria" },
+    { key: "mat_construcao", label: "Mat. Construção" },
+    { key: "acabamento", label: "Acabamento" },
+    { key: "pintura", label: "Pintura" },
+    { key: "marceneiro", label: "Marceneiro" },
+    { key: "cruz_iluminacao", label: "Cruz / Iluminação" },
+    { key: "outros", label: "Outros" },
+  ];
+
+  // Cálculos derivados
+  const totalEntradas = (q) => entradaFields.reduce((s, f) => s + (q[f.key] || 0), 0);
+  const totalPagamentos = (q) => pagamentoFields.reduce((s, f) => s + (q[f.key] || 0), 0);
+
+  // Saldo final por quinzena (cumulativo)
+  const saldos = useMemo(() => {
+    let saldoAnterior = 0;
+    return quinzenas.map((q, idx) => {
+      const caixa = idx === 0 ? (q.saldo_inicial || 0) : saldoAnterior;
+      const saldoFinal = caixa + totalEntradas(q) - totalPagamentos(q);
+      saldoAnterior = saldoFinal;
+      return { caixa, totalEntradas: totalEntradas(q), totalPagamentos: totalPagamentos(q), saldoFinal };
     });
-    setDialogOpen(true);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [quinzenas]);
+
+  const handleCellChange = (idx, key, value) => {
+    setQuinzenas(prev => prev.map((q, i) => i === idx ? { ...q, [key]: parseFloat(value) || 0 } : q));
   };
 
-  const handleSubmit = async (e) => {
-    e.preventDefault();
+  const handleCellBlur = async (idx, key) => {
+    if (!canEdit) return;
+    const q = quinzenas[idx];
     try {
-      const periodo = formData.tipo === "previsao"
-        ? `${formData.quinzena}ª Quinzena - ${meses.find(m => m.value === Number(formData.mes))?.label}/${formData.ano}`
-        : "";
-      const payload = {
-        ...formData,
-        valor: parseFloat(formData.valor) || 0,
-        quinzena: Number(formData.quinzena) || 0,
-        mes: Number(formData.mes) || 0,
-        ano: Number(formData.ano) || 0,
-        periodo
-      };
-      if (editing) {
-        await axios.put(`${API}/fluxo-caixa/${editing.id}`, payload);
-        toast.success("Atualizado!");
-      } else {
-        await axios.post(`${API}/fluxo-caixa`, payload);
-        toast.success("Registrado!");
-      }
-      setDialogOpen(false);
-      setEditing(null);
+      await axios.put(`${API}/fluxo-quinzenal/${q.id}`, { [key]: q[key] });
+    } catch {
+      toast.error("Erro ao salvar");
+    }
+  };
+
+  const handleGerar = async () => {
+    try {
+      await axios.post(`${API}/fluxo-quinzenal/gerar`, setupData);
+      toast.success("Quinzenas geradas!");
+      setSetupOpen(false);
       fetchData();
     } catch (err) {
-      toast.error(err.response?.data?.detail || "Erro ao salvar");
+      toast.error(err.response?.data?.detail || "Erro ao gerar");
     }
   };
 
-  const handleDelete = async (id) => {
-    if (!window.confirm("Excluir este registro?")) return;
+  const handleLimpar = async () => {
+    if (!window.confirm("Excluir TODAS as quinzenas? Esta ação não pode ser desfeita.")) return;
     try {
-      await axios.delete(`${API}/fluxo-caixa/${id}`);
-      toast.success("Excluído!");
+      await Promise.all(quinzenas.map(q => axios.delete(`${API}/fluxo-quinzenal/${q.id}`)));
+      toast.success("Quinzenas removidas");
       fetchData();
     } catch {
-      toast.error("Erro ao excluir");
+      toast.error("Erro ao limpar");
     }
   };
 
-  const togglePago = async (item) => {
-    try {
-      await axios.put(`${API}/fluxo-caixa/${item.id}`, { pago: !item.pago });
-      fetchData();
-    } catch {
-      toast.error("Erro ao atualizar");
-    }
-  };
-
-  const caixaItems = items.filter(i => i.tipo === "caixa");
-  const previsaoItems = items.filter(i => i.tipo === "previsao");
-  const pagamentoItems = items.filter(i => i.tipo === "pagamento");
-
-  const anos = [];
-  const anoAtual = new Date().getFullYear();
-  for (let a = anoAtual - 1; a <= anoAtual + 2; a++) anos.push(a);
+  const saldoFinalGeral = saldos.length > 0 ? saldos[saldos.length - 1].saldoFinal : 0;
+  const totalEntradasGeral = quinzenas.reduce((s, q) => s + totalEntradas(q), 0);
+  const totalPagamentosGeral = quinzenas.reduce((s, q) => s + totalPagamentos(q), 0);
 
   return (
     <Layout>
       <div className="space-y-6">
-        <div className="flex items-center justify-between">
+        <div className="flex items-center justify-between flex-wrap gap-4">
           <div>
             <h1 className="text-3xl font-bold tracking-tight">Fluxo de Caixa</h1>
-            <p className="text-muted-foreground">Controle de caixa, previsões quinzenais e pagamentos da obra</p>
+            <p className="text-muted-foreground">Planilha quinzenal de entradas, pagamentos e saldos</p>
           </div>
-        </div>
-
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-          <Card data-testid="card-saldo">
-            <CardHeader className="pb-2">
-              <CardTitle className="text-sm text-muted-foreground">Saldo em Caixa</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className={`text-2xl font-bold ${resumo.saldo >= 0 ? 'text-green-600' : 'text-red-600'}`}>{formatCurrency(resumo.saldo)}</div>
-              <p className="text-xs text-muted-foreground mt-1">Entradas − Saídas</p>
-            </CardContent>
-          </Card>
-          <Card>
-            <CardHeader className="pb-2">
-              <CardTitle className="text-sm text-muted-foreground">Total Entradas</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold text-green-600">{formatCurrency(resumo.entradas)}</div>
-            </CardContent>
-          </Card>
-          <Card>
-            <CardHeader className="pb-2">
-              <CardTitle className="text-sm text-muted-foreground">Pagamentos Pagos</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold">{formatCurrency(resumo.total_pago)}</div>
-            </CardContent>
-          </Card>
-          <Card>
-            <CardHeader className="pb-2">
-              <CardTitle className="text-sm text-muted-foreground">A Pagar (Pendente)</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold text-amber-600">{formatCurrency(resumo.total_pendente)}</div>
-            </CardContent>
-          </Card>
-        </div>
-
-        <Tabs value={activeTab} onValueChange={setActiveTab}>
-          <TabsList className="grid grid-cols-3 max-w-md">
-            <TabsTrigger value="caixa" data-testid="tab-caixa">Caixa</TabsTrigger>
-            <TabsTrigger value="previsao" data-testid="tab-previsao">Previsão</TabsTrigger>
-            <TabsTrigger value="pagamento" data-testid="tab-pagamento">Pagamentos</TabsTrigger>
-          </TabsList>
-
-          <TabsContent value="caixa" className="space-y-4">
-            <div className="flex justify-end">
-              {canEdit && (
-                <Button onClick={() => openNew("caixa")} data-testid="btn-novo-caixa">
-                  <Plus className="w-4 h-4 mr-2" />Nova Movimentação
+          {canEdit && (
+            <div className="flex gap-2">
+              {quinzenas.length === 0 ? (
+                <Button onClick={() => setSetupOpen(true)} data-testid="btn-gerar-quinzenas">
+                  <Plus className="w-4 h-4 mr-2" />Gerar Quinzenas
                 </Button>
-              )}
-            </div>
-            <Card>
-              <CardContent className="p-0">
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>Data</TableHead>
-                      <TableHead>Movimento</TableHead>
-                      <TableHead>Descrição</TableHead>
-                      <TableHead className="text-right">Valor</TableHead>
-                      {canEdit && <TableHead className="text-center">Ações</TableHead>}
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {loading ? (
-                      <TableRow><TableCell colSpan={canEdit ? 5 : 4} className="text-center py-8 text-muted-foreground">Carregando...</TableCell></TableRow>
-                    ) : caixaItems.length === 0 ? (
-                      <TableRow><TableCell colSpan={canEdit ? 5 : 4} className="text-center py-8 text-muted-foreground">Nenhuma movimentação registrada</TableCell></TableRow>
-                    ) : caixaItems.map(item => (
-                      <TableRow key={item.id}>
-                        <TableCell>{formatDate(item.data)}</TableCell>
-                        <TableCell>
-                          <Badge variant="outline" className={item.movimento === "Entrada" ? "bg-green-100 text-green-700 border-green-300" : "bg-red-100 text-red-700 border-red-300"}>
-                            {item.movimento}
-                          </Badge>
-                        </TableCell>
-                        <TableCell>{item.descricao || "-"}</TableCell>
-                        <TableCell className={`text-right font-semibold ${item.movimento === "Entrada" ? 'text-green-600' : 'text-red-600'}`}>
-                          {item.movimento === "Entrada" ? "+" : "−"} {formatCurrency(item.valor)}
-                        </TableCell>
-                        {canEdit && (
-                          <TableCell className="text-center">
-                            <Button variant="ghost" size="sm" onClick={() => openEdit(item)}><Edit className="w-4 h-4" /></Button>
-                            <Button variant="ghost" size="sm" onClick={() => handleDelete(item.id)}><Trash2 className="w-4 h-4 text-destructive" /></Button>
-                          </TableCell>
-                        )}
-                      </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
-              </CardContent>
-            </Card>
-          </TabsContent>
-
-          <TabsContent value="previsao" className="space-y-4">
-            <div className="flex justify-end">
-              {canEdit && (
-                <Button onClick={() => openNew("previsao")} data-testid="btn-nova-previsao">
-                  <Plus className="w-4 h-4 mr-2" />Nova Previsão
-                </Button>
-              )}
-            </div>
-            <Card>
-              <CardContent className="p-0">
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>Período</TableHead>
-                      <TableHead>Descrição</TableHead>
-                      <TableHead className="text-right">Valor</TableHead>
-                      {canEdit && <TableHead className="text-center">Ações</TableHead>}
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {loading ? (
-                      <TableRow><TableCell colSpan={canEdit ? 4 : 3} className="text-center py-8 text-muted-foreground">Carregando...</TableCell></TableRow>
-                    ) : previsaoItems.length === 0 ? (
-                      <TableRow><TableCell colSpan={canEdit ? 4 : 3} className="text-center py-8 text-muted-foreground">Nenhuma previsão registrada</TableCell></TableRow>
-                    ) : previsaoItems.map(item => (
-                      <TableRow key={item.id}>
-                        <TableCell className="font-medium">{item.periodo || "-"}</TableCell>
-                        <TableCell>{item.descricao || "-"}</TableCell>
-                        <TableCell className="text-right font-semibold">{formatCurrency(item.valor)}</TableCell>
-                        {canEdit && (
-                          <TableCell className="text-center">
-                            <Button variant="ghost" size="sm" onClick={() => openEdit(item)}><Edit className="w-4 h-4" /></Button>
-                            <Button variant="ghost" size="sm" onClick={() => handleDelete(item.id)}><Trash2 className="w-4 h-4 text-destructive" /></Button>
-                          </TableCell>
-                        )}
-                      </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
-              </CardContent>
-            </Card>
-          </TabsContent>
-
-          <TabsContent value="pagamento" className="space-y-4">
-            <div className="flex justify-end">
-              {canEdit && (
-                <Button onClick={() => openNew("pagamento")} data-testid="btn-novo-pagamento">
-                  <Plus className="w-4 h-4 mr-2" />Novo Pagamento
-                </Button>
-              )}
-            </div>
-            <Card>
-              <CardContent className="p-0">
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>Data</TableHead>
-                      <TableHead>Categoria</TableHead>
-                      <TableHead>Fornecedor</TableHead>
-                      <TableHead>Descrição</TableHead>
-                      <TableHead className="text-right">Valor</TableHead>
-                      <TableHead className="text-center">Status</TableHead>
-                      {canEdit && <TableHead className="text-center">Ações</TableHead>}
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {loading ? (
-                      <TableRow><TableCell colSpan={canEdit ? 7 : 6} className="text-center py-8 text-muted-foreground">Carregando...</TableCell></TableRow>
-                    ) : pagamentoItems.length === 0 ? (
-                      <TableRow><TableCell colSpan={canEdit ? 7 : 6} className="text-center py-8 text-muted-foreground">Nenhum pagamento registrado</TableCell></TableRow>
-                    ) : pagamentoItems.map(item => (
-                      <TableRow key={item.id}>
-                        <TableCell>{formatDate(item.data)}</TableCell>
-                        <TableCell><Badge variant="outline">{item.categoria || "-"}</Badge></TableCell>
-                        <TableCell>{item.fornecedor || "-"}</TableCell>
-                        <TableCell>{item.descricao || "-"}</TableCell>
-                        <TableCell className="text-right font-semibold">{formatCurrency(item.valor)}</TableCell>
-                        <TableCell className="text-center">
-                          <Badge
-                            className={`cursor-pointer ${item.pago ? 'bg-green-100 text-green-700 border-green-300' : 'bg-amber-100 text-amber-700 border-amber-300'}`}
-                            variant="outline"
-                            onClick={() => canEdit && togglePago(item)}
-                          >
-                            {item.pago ? "Pago" : "Pendente"}
-                          </Badge>
-                        </TableCell>
-                        {canEdit && (
-                          <TableCell className="text-center">
-                            <Button variant="ghost" size="sm" onClick={() => openEdit(item)}><Edit className="w-4 h-4" /></Button>
-                            <Button variant="ghost" size="sm" onClick={() => handleDelete(item.id)}><Trash2 className="w-4 h-4 text-destructive" /></Button>
-                          </TableCell>
-                        )}
-                      </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
-              </CardContent>
-            </Card>
-          </TabsContent>
-        </Tabs>
-
-        <Dialog open={dialogOpen} onOpenChange={(open) => { setDialogOpen(open); if (!open) setEditing(null); }}>
-          <DialogContent className="max-w-lg">
-            <DialogHeader>
-              <DialogTitle>
-                {editing ? "Editar" : "Novo"} {formData.tipo === "caixa" ? "Movimento de Caixa" : formData.tipo === "previsao" ? "Previsão Quinzenal" : "Pagamento"}
-              </DialogTitle>
-              <DialogDescription>Preencha os dados abaixo</DialogDescription>
-            </DialogHeader>
-            <form onSubmit={handleSubmit} className="space-y-4">
-              {formData.tipo === "caixa" && (
-                <div className="grid grid-cols-2 gap-4">
-                  <div className="space-y-2">
-                    <Label>Movimento *</Label>
-                    <Select value={formData.movimento} onValueChange={(v) => setFormData({ ...formData, movimento: v })}>
-                      <SelectTrigger><SelectValue /></SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="Entrada">Entrada</SelectItem>
-                        <SelectItem value="Saída">Saída</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
-                  <div className="space-y-2">
-                    <Label>Data</Label>
-                    <Input type="date" value={formData.data} onChange={(e) => setFormData({ ...formData, data: e.target.value })} />
-                  </div>
-                </div>
-              )}
-
-              {formData.tipo === "previsao" && (
-                <div className="grid grid-cols-3 gap-4">
-                  <div className="space-y-2">
-                    <Label>Quinzena</Label>
-                    <Select value={String(formData.quinzena)} onValueChange={(v) => setFormData({ ...formData, quinzena: Number(v) })}>
-                      <SelectTrigger><SelectValue /></SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="1">1ª Quinzena</SelectItem>
-                        <SelectItem value="2">2ª Quinzena</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
-                  <div className="space-y-2">
-                    <Label>Mês</Label>
-                    <Select value={String(formData.mes)} onValueChange={(v) => setFormData({ ...formData, mes: Number(v) })}>
-                      <SelectTrigger><SelectValue /></SelectTrigger>
-                      <SelectContent>
-                        {meses.map(m => <SelectItem key={m.value} value={String(m.value)}>{m.label}</SelectItem>)}
-                      </SelectContent>
-                    </Select>
-                  </div>
-                  <div className="space-y-2">
-                    <Label>Ano</Label>
-                    <Select value={String(formData.ano)} onValueChange={(v) => setFormData({ ...formData, ano: Number(v) })}>
-                      <SelectTrigger><SelectValue /></SelectTrigger>
-                      <SelectContent>
-                        {anos.map(a => <SelectItem key={a} value={String(a)}>{a}</SelectItem>)}
-                      </SelectContent>
-                    </Select>
-                  </div>
-                </div>
-              )}
-
-              {formData.tipo === "pagamento" && (
+              ) : (
                 <>
-                  <div className="grid grid-cols-2 gap-4">
-                    <div className="space-y-2">
-                      <Label>Categoria *</Label>
-                      <Select value={formData.categoria} onValueChange={(v) => setFormData({ ...formData, categoria: v })}>
-                        <SelectTrigger data-testid="select-categoria"><SelectValue /></SelectTrigger>
-                        <SelectContent>
-                          {categorias.map(c => <SelectItem key={c} value={c}>{c}</SelectItem>)}
-                        </SelectContent>
-                      </Select>
-                    </div>
-                    <div className="space-y-2">
-                      <Label>Data</Label>
-                      <Input type="date" value={formData.data} onChange={(e) => setFormData({ ...formData, data: e.target.value })} />
-                    </div>
-                  </div>
-                  <div className="space-y-2">
-                    <Label>Fornecedor</Label>
-                    <Input value={formData.fornecedor} onChange={(e) => setFormData({ ...formData, fornecedor: e.target.value })} placeholder="Nome do fornecedor / prestador" />
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <Switch id="pago" checked={formData.pago} onCheckedChange={(v) => setFormData({ ...formData, pago: v })} />
-                    <Label htmlFor="pago" className="cursor-pointer">Pago</Label>
-                  </div>
+                  <Button variant="outline" onClick={() => setSetupOpen(true)}>
+                    <Plus className="w-4 h-4 mr-2" />Adicionar Período
+                  </Button>
+                  <Button variant="destructive" onClick={handleLimpar}>
+                    <Trash2 className="w-4 h-4 mr-2" />Limpar Tudo
+                  </Button>
                 </>
               )}
+            </div>
+          )}
+        </div>
 
+        {/* Cards resumo */}
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+          <Card>
+            <CardHeader className="pb-2"><CardTitle className="text-sm text-muted-foreground">Saldo Final Projetado</CardTitle></CardHeader>
+            <CardContent>
+              <div className={`text-2xl font-bold ${saldoFinalGeral >= 0 ? 'text-green-600' : 'text-red-600'}`}>{formatCurrency(saldoFinalGeral)}</div>
+            </CardContent>
+          </Card>
+          <Card>
+            <CardHeader className="pb-2"><CardTitle className="text-sm text-muted-foreground">Saldo Inicial</CardTitle></CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold">{formatCurrency(quinzenas[0]?.saldo_inicial || 0)}</div>
+            </CardContent>
+          </Card>
+          <Card>
+            <CardHeader className="pb-2"><CardTitle className="text-sm text-muted-foreground">Total Entradas</CardTitle></CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold text-green-600">{formatCurrency(totalEntradasGeral)}</div>
+            </CardContent>
+          </Card>
+          <Card>
+            <CardHeader className="pb-2"><CardTitle className="text-sm text-muted-foreground">Total Pagamentos</CardTitle></CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold text-red-600">{formatCurrency(totalPagamentosGeral)}</div>
+            </CardContent>
+          </Card>
+        </div>
+
+        {/* Matriz */}
+        <Card>
+          <CardContent className="p-0 overflow-x-auto">
+            {loading ? (
+              <div className="p-8 text-center text-muted-foreground">Carregando...</div>
+            ) : quinzenas.length === 0 ? (
+              <div className="p-12 text-center text-muted-foreground">
+                <p className="mb-4">Nenhuma quinzena cadastrada.</p>
+                {canEdit && <Button onClick={() => setSetupOpen(true)}><Plus className="w-4 h-4 mr-2" />Gerar Quinzenas</Button>}
+              </div>
+            ) : (
+              <table className="w-full text-sm border-collapse" data-testid="tabela-fluxo">
+                <thead>
+                  <tr className="bg-muted">
+                    <th className="text-left p-3 font-semibold sticky left-0 bg-muted z-10 min-w-[180px] border-b">Categoria</th>
+                    {quinzenas.map((q, idx) => (
+                      <th key={q.id} className="text-center p-3 font-semibold border-b min-w-[120px]">
+                        <div className="text-xs text-muted-foreground">Quinzena {idx + 1}</div>
+                        <div>{formatDate(q.data)}</div>
+                      </th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody>
+                  {/* CAIXA */}
+                  <tr className="bg-blue-50 dark:bg-blue-950/30 font-semibold">
+                    <td className="p-3 sticky left-0 bg-blue-50 dark:bg-blue-950/30 z-10 border-b">CAIXA (Saldo Anterior)</td>
+                    {saldos.map((s, idx) => (
+                      <td key={idx} className="p-3 text-right border-b">
+                        {idx === 0 && canEdit ? (
+                          <input
+                            type="number"
+                            step="0.01"
+                            className="w-full text-right bg-transparent border-none focus:outline-none focus:ring-1 focus:ring-blue-500 rounded px-1"
+                            value={quinzenas[0].saldo_inicial || 0}
+                            onChange={(e) => handleCellChange(0, "saldo_inicial", e.target.value)}
+                            onBlur={() => handleCellBlur(0, "saldo_inicial")}
+                            data-testid="cell-saldo-inicial"
+                          />
+                        ) : formatCurrency(s.caixa)}
+                      </td>
+                    ))}
+                  </tr>
+
+                  {/* Cabeçalho ENTRADAS */}
+                  <tr className="bg-green-100 dark:bg-green-950/40">
+                    <td className="p-3 sticky left-0 bg-green-100 dark:bg-green-950/40 z-10 font-bold text-green-900 dark:text-green-200 border-b" colSpan={quinzenas.length + 1}>ENTRADAS</td>
+                  </tr>
+                  {entradaFields.map(field => (
+                    <tr key={field.key} className="hover:bg-muted/30">
+                      <td className="p-3 sticky left-0 bg-background z-10 border-b">{field.label}</td>
+                      {quinzenas.map((q, idx) => (
+                        <td key={q.id} className="p-1 text-right border-b">
+                          {canEdit ? (
+                            <input
+                              type="number"
+                              step="0.01"
+                              className="w-full text-right bg-transparent border-none focus:outline-none focus:ring-1 focus:ring-blue-500 rounded px-2 py-1"
+                              value={q[field.key] || 0}
+                              onChange={(e) => handleCellChange(idx, field.key, e.target.value)}
+                              onBlur={() => handleCellBlur(idx, field.key)}
+                            />
+                          ) : formatCurrency(q[field.key])}
+                        </td>
+                      ))}
+                    </tr>
+                  ))}
+                  <tr className="bg-green-50 dark:bg-green-950/20 font-semibold">
+                    <td className="p-3 sticky left-0 bg-green-50 dark:bg-green-950/20 z-10 border-b">Total Entradas</td>
+                    {saldos.map((s, idx) => (
+                      <td key={idx} className="p-3 text-right text-green-700 dark:text-green-400 border-b">{formatCurrency(s.totalEntradas)}</td>
+                    ))}
+                  </tr>
+
+                  {/* Cabeçalho PAGAMENTOS */}
+                  <tr className="bg-red-100 dark:bg-red-950/40">
+                    <td className="p-3 sticky left-0 bg-red-100 dark:bg-red-950/40 z-10 font-bold text-red-900 dark:text-red-200 border-b" colSpan={quinzenas.length + 1}>PAGAMENTOS</td>
+                  </tr>
+                  {pagamentoFields.map(field => (
+                    <tr key={field.key} className="hover:bg-muted/30">
+                      <td className="p-3 sticky left-0 bg-background z-10 border-b">{field.label}</td>
+                      {quinzenas.map((q, idx) => (
+                        <td key={q.id} className="p-1 text-right border-b">
+                          {canEdit ? (
+                            <input
+                              type="number"
+                              step="0.01"
+                              className="w-full text-right bg-transparent border-none focus:outline-none focus:ring-1 focus:ring-blue-500 rounded px-2 py-1"
+                              value={q[field.key] || 0}
+                              onChange={(e) => handleCellChange(idx, field.key, e.target.value)}
+                              onBlur={() => handleCellBlur(idx, field.key)}
+                            />
+                          ) : formatCurrency(q[field.key])}
+                        </td>
+                      ))}
+                    </tr>
+                  ))}
+                  <tr className="bg-red-50 dark:bg-red-950/20 font-semibold">
+                    <td className="p-3 sticky left-0 bg-red-50 dark:bg-red-950/20 z-10 border-b">Total Pagamentos</td>
+                    {saldos.map((s, idx) => (
+                      <td key={idx} className="p-3 text-right text-red-700 dark:text-red-400 border-b">{formatCurrency(s.totalPagamentos)}</td>
+                    ))}
+                  </tr>
+
+                  {/* SALDO FINAL */}
+                  <tr className="bg-yellow-100 dark:bg-yellow-950/40 font-bold">
+                    <td className="p-3 sticky left-0 bg-yellow-100 dark:bg-yellow-950/40 z-10">SALDO FINAL</td>
+                    {saldos.map((s, idx) => (
+                      <td key={idx} className={`p-3 text-right ${s.saldoFinal >= 0 ? 'text-green-700 dark:text-green-300' : 'text-red-700 dark:text-red-300'}`} data-testid={`saldo-${idx}`}>
+                        {formatCurrency(s.saldoFinal)}
+                      </td>
+                    ))}
+                  </tr>
+                </tbody>
+              </table>
+            )}
+          </CardContent>
+        </Card>
+
+        <p className="text-xs text-muted-foreground">
+          💡 Clique em qualquer célula numérica para editar. O valor é salvo automaticamente ao sair do campo. SALDO FINAL é calculado: CAIXA + Total Entradas − Total Pagamentos.
+        </p>
+
+        {/* Setup Dialog */}
+        <Dialog open={setupOpen} onOpenChange={setSetupOpen}>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>Gerar Quinzenas</DialogTitle>
+              <DialogDescription>Gera N períodos de 14 dias a partir da data inicial</DialogDescription>
+            </DialogHeader>
+            <div className="space-y-4">
               <div className="space-y-2">
-                <Label>Descrição</Label>
-                <Input value={formData.descricao} onChange={(e) => setFormData({ ...formData, descricao: e.target.value })} placeholder="Descrição" />
+                <Label>Data Inicial</Label>
+                <Input type="date" value={setupData.data_inicial} onChange={(e) => setSetupData({ ...setupData, data_inicial: e.target.value })} data-testid="setup-data" />
               </div>
               <div className="space-y-2">
-                <Label>Valor (R$) *</Label>
-                <Input type="number" step="0.01" min="0" required value={formData.valor} onChange={(e) => setFormData({ ...formData, valor: e.target.value })} placeholder="0,00" />
+                <Label>Quantidade de Quinzenas</Label>
+                <Input type="number" min="1" max="60" value={setupData.quantidade} onChange={(e) => setSetupData({ ...setupData, quantidade: parseInt(e.target.value) || 1 })} data-testid="setup-qtd" />
               </div>
-
-              <DialogFooter>
-                <Button type="submit">{editing ? "Atualizar" : "Cadastrar"}</Button>
-              </DialogFooter>
-            </form>
+              {quinzenas.length === 0 && (
+                <div className="space-y-2">
+                  <Label>Saldo Inicial (R$)</Label>
+                  <Input type="number" step="0.01" value={setupData.saldo_inicial} onChange={(e) => setSetupData({ ...setupData, saldo_inicial: parseFloat(e.target.value) || 0 })} data-testid="setup-saldo" />
+                </div>
+              )}
+            </div>
+            <DialogFooter>
+              <Button variant="outline" onClick={() => setSetupOpen(false)}>Cancelar</Button>
+              <Button onClick={handleGerar} data-testid="btn-confirmar-gerar">Gerar</Button>
+            </DialogFooter>
           </DialogContent>
         </Dialog>
       </div>
